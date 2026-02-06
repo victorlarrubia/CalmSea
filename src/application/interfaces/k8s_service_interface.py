@@ -22,3 +22,8 @@ class K8sServiceInterface(ABC):
     def list_namespaces(self) -> List[str]:
         """Lista todos os namespaces disponíveis no cluster."""
         pass
+
+    @abstractmethod
+    def apply_manifest(self, manifest: Dict[str, Any], namespace: str) -> Dict[str, Any]:
+        """Aplica (Cria ou Atualiza) um recurso Kubernetes via dicionário/YAML."""
+        pass
