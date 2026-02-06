@@ -37,3 +37,8 @@ class K8sServiceInterface(ABC):
     def scale_resource(self, resource_type: str, name: str, namespace: str, replicas: int) -> Any:
         """Altera o número de réplicas de um recurso (Deployment/StatefulSet)."""
         pass
+
+    @abstractmethod
+    def validate_manifest(self, manifest: Dict[str, Any], namespace: str) -> Dict[str, Any]:
+        """Verifica se um manifesto é válido sem aplicá-lo (Server-Side Dry Run)."""
+        pass
