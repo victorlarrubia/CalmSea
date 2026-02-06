@@ -12,3 +12,8 @@ class K8sServiceInterface(ABC):
     def get_resource_details(self, resource_type: str, name: str, namespace: str) -> Dict[str, Any]:
         """Obtém os detalhes completos (YAML/JSON) de um recurso."""
         pass
+
+    @abstractmethod
+    def get_pod_logs(self, pod_name: str, namespace: str, tail_lines: int) -> str:
+        """Obtém os logs de texto de um pod específico."""
+        pass
