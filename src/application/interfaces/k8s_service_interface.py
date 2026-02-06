@@ -17,3 +17,8 @@ class K8sServiceInterface(ABC):
     def get_pod_logs(self, pod_name: str, namespace: str, tail_lines: int) -> str:
         """Obtém os logs de texto de um pod específico."""
         pass
+
+    @abstractmethod
+    def list_namespaces(self) -> List[str]:
+        """Lista todos os namespaces disponíveis no cluster."""
+        pass
