@@ -13,6 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Instala o kubectl dentro do container
+RUN apt-get update && apt-get install -y curl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
 # Copia e instala as dependências Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

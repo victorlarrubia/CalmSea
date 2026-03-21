@@ -38,6 +38,23 @@ services:
       - ./logs:/app/logs 
       - ./tests:/app/tests 
 
+  performancetest:
+    build: .
+    container_name: performance-test
+    network_mode: "host"
+    depends_on:
+      - servermcp
+    environment:
+      - PYTHONPATH=/app
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./src:/app/src
+      - ./docs/tests:/app/docs/tests
+      - ./results:/app/results
+      - ./remote-kubeconfig.yaml:/root/.kube/config
+      - ./certs-remotos:/app/certs
+    command: ["python3", "src/performance_test/main.py"]
+
     # --- REQUISITO v1.3: SELEÇÃO DE RECURSOS GPU ---
     # deploy:
     #   resources:
