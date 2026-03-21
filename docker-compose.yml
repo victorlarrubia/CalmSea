@@ -1,31 +1,50 @@
 services:
+  # --- O SERVIDOR DE FERRAMENTAS (MCP) ---
+  servermcp:
+    build: 
+      context: .
+      dockerfile: Dockerfile.mcp # Certifique-se de ter esse Dockerfile
+    container_name: servermcp
+    network_mode: "host" # Mantém a simplicidade para o túnel SSH
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./src:/app/src
+      - ./remote-kubeconfig.yaml:/root/.kube/config
+      - ./certs-remotos:/app/certs
+    restart: always
+
+  # --- O AGENTE (INTERFACE E LÓGICA) ---
   agentk:
     build: .
     container_name: agentk-mcp
-    
-    # [TRUQUE DO LINUX]
-    # "host" faz o container usar a mesma rede do seu computador.
-    # Isso permite acessar:
-    # 1. Ollama em localhost:11434
-    # 2. Minikube IP
     network_mode: "host"
+    
+    depends_on:
+      - servermcp # Garante que o servidor suba antes do agente
 
     environment:
-      # Passa a chave da OpenAI se estiver no .env ou variável de ambiente
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # Força o Python a ver a pasta src
       - PYTHONPATH=/app
+      - KUBECONFIG=/root/.kube/config
+      # Variável para o requisito v1.3: Seleção de Hardware
+      - LLM_HARDWARE_TARGET=gpu 
     
     volumes:
-      # 1. Hot Reload: Se você mudar código na pasta src/, o container atualiza
       - ./src:/app/src
-      
-      # 2. Kubeconfig: Mapeia seu arquivo de config para o root do container
-      - ~/.kube/config:/root/.kube/config
-      
-      # 3. Certificados Minikube: O config do K8s procura certs em /home/vitordie/.minikube
-      # Precisamos garantir que esse caminho exista DENTRO do container igualzinho fora.
-      - ~/.minikube:${HOME}/.minikube
+      - ./remote-kubeconfig.yaml:/root/.kube/config
+      - ./certs-remotos:/app/certs
+      # Adicionamos a pasta de logs para o requisito de métricas
+      - ./logs:/app/logs 
+      - ./tests:/app/tests 
 
-    # Reinicia se falhar (mas não se você parar manualmente)
+    # --- REQUISITO v1.3: SELEÇÃO DE RECURSOS GPU ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
     restart: on-failure

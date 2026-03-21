@@ -10,17 +10,24 @@ class OllamaAdapter(LLMProviderInterface):
         """
         self.model = model
 
-    def generate_text(self, prompt: str, system_instruction: str = None) -> str:
-        messages = []
-        if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
+def generate_text(self, prompt: str, system_instruction: str = None) -> str:
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
 
-        try:
-            response = ollama.chat(model=self.model, messages=messages)
-            return response['message']['content']
-        except Exception as e:
-            return f"Erro no Ollama: {str(e)}"
+    try:
+        # 1. Faz a chamada
+        response = ollama.chat(model=self.model, messages=messages)
+        
+        # 2. Armazena a resposta bruta para o MonitorDecorator ler
+        self.last_full_response = response 
+        
+        # 3. Retorna apenas a string para manter o contrato e o Front-end estável
+        return response['message']['content']
+    except Exception as e:
+        self.last_full_response = {} # Limpa em caso de erro
+        return f"Erro no Ollama: {str(e)}"
 
     def decide_tool(self, prompt: str, tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
         """

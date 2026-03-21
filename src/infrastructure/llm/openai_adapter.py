@@ -19,21 +19,28 @@ class OpenAIAdapter(LLMProviderInterface):
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
 
-    def generate_text(self, prompt: str, system_instruction: str = None) -> str:
-        messages = []
-        if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
+def generate_text(self, prompt: str, system_instruction: str = None) -> str:
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7
-            )
-            return response.choices[0].message.content
-        except OpenAIError as e:
-            return f"Erro na OpenAI: {str(e)}"
+    try:
+        # 1. Faz a chamada
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.7
+        )
+        
+        # 2. Armazena o objeto completo (contém response.usage)
+        self.last_full_response = response 
+        
+        # 3. Retorna apenas o conteúdo do texto
+        return response.choices[0].message.content
+    except OpenAIError as e:
+        self.last_full_response = {} # Limpa em caso de erro
+        return f"Erro na OpenAI: {str(e)}" 
 
     def decide_tool(self, prompt: str, tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
         """

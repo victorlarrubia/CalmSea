@@ -1,34 +1,22 @@
 import unittest
-from unittest.mock import MagicMock, patch
-import time
-from src.adapters.llm.metrics_decorator import monitor_performance
+from unittest.mock import MagicMock
+from src.adapters.llm.metrics_decorator import LLMMonitorDecorator
 
-class TestMetricsDecorator(unittest.TestCase):
-    def test_should_measure_execution_time_and_token_count(self):
+class TestLLMMonitorDecorator(unittest.TestCase):
+    def test_should_record_metrics_and_return_string(self):
         # Arrange
-        # Simulamos uma função que seria a chamada real ao LLM (Ollama/OpenAI)
-        mock_response = {
-            "text": "Resposta de teste",
-            "usage": {"total_tokens": 50}
-        }
-        
-        @monitor_performance
-        def fake_llm_call(prompt):
-            time.sleep(0.1)  # Simula um delay de processamento
-            return mock_response
+        mock_collector = MagicMock()
+        mock_adapter = MagicMock()
+        mock_adapter.model = "gpt-4o-mini"
+        mock_adapter.generate_text.return_value = "Resposta de teste"
+        # Simulamos a resposta que o Adapter salvou internamente
+        mock_adapter.last_full_response = MagicMock(usage=MagicMock(total_tokens=50))
+
+        decorator = LLMMonitorDecorator(mock_adapter, "OpenAI", mock_collector)
 
         # Act
-        # Executamos a função decorada
-        result = fake_llm_call("Olá, AgentK")
+        result = decorator.generate_text("Olá")
 
         # Assert
-        # Verificamos se o resultado original foi mantido
-        self.assertEqual(result["text"], "Resposta de teste")
-        
-        # Verificamos se o decorador injetou os metadados de performance no retorno
-        self.assertIn("performance_metrics", result)
-        self.assertGreaterEqual(result["performance_metrics"]["duration_seconds"], 0.1)
-        self.assertEqual(result["performance_metrics"]["tokens"], 50)
-
-if __name__ == '__main__':
-    unittest.main()
+        self.assertEqual(result, "Resposta de teste")
+        self.assertTrue(mock_collector.record.called)
