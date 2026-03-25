@@ -29,7 +29,7 @@ class AgentService:
             "Se for uma ação perigosa (como delete), peça confirmação antes (simule isso no texto)."
         )
 
-    def run(self, user_prompt: str) -> str:
+    def run(self, user_prompt: str, system_instruction: str = None) -> str:
         """
         Executa o ciclo completo: Pensar -> Decidir -> Agir -> Responder
         """
@@ -38,7 +38,7 @@ class AgentService:
         decision = self.llm.decide_tool(
             prompt=user_prompt,
             tools_schema=TOOLS_SCHEMA,
-            system_instruction=self.system_instruction
+            system_instruction=system_instruction or self.system_instruction
         )
 
         # 2. AVALIAR DECISÃO

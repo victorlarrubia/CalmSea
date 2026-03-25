@@ -21,17 +21,23 @@ class OpenAIAdapter(LLMProviderInterface):
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
 
+        # Monta os argumentos base
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+        }
+        
+        # Só adiciona temperature se o modelo NÃO for da família "o"
+        if not self.model.startswith("o"):
+            kwargs["temperature"] = 0.7
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7
-            )
+            response = self.client.chat.completions.create(**kwargs)
             # SALVA PARA O DECORATOR
             self.last_full_response = response 
             return response.choices[0].message.content
         except OpenAIError as e:
-            self.last_full_response = {}
+            self.last_full_response = {} # Limpa para o decorator não ler lixo
             return f"Erro na OpenAI: {str(e)}"
 
     def decide_tool(self, prompt: str, tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
@@ -40,14 +46,20 @@ class OpenAIAdapter(LLMProviderInterface):
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
 
+        # Monta os argumentos base
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools_schema,
+            "tool_choice": "auto"
+        }
+        
+        # Só adiciona temperature se o modelo NÃO for da família "o"
+        if not self.model.startswith("o"):
+            kwargs["temperature"] = 0.0
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools_schema,
-                tool_choice="auto",
-                temperature=0.0
-            )
+            response = self.client.chat.completions.create(**kwargs)
             # SALVA PARA O DECORATOR (Métricas também em chamadas de ferramentas!)
             self.last_full_response = response 
 
@@ -65,4 +77,5 @@ class OpenAIAdapter(LLMProviderInterface):
             return {"action": "reply", "content": message.content}
 
         except OpenAIError as e:
+            self.last_full_response = {} # Limpa para o decorator não ler lixo
             return {"action": "error", "content": str(e)}

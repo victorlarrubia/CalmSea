@@ -3,6 +3,8 @@ import logging
 from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
 from src.application.interfaces.k8s_service_interface import K8sServiceInterface
+import yaml
+import subprocess
 
 # Configuração de Logs
 logger = logging.getLogger(__name__)
@@ -87,19 +89,31 @@ class K8sServiceAdapter(K8sServiceInterface):
             logger.error(f"Erro ao listar namespaces: {e}")
             return []
 
-    def apply_manifest(self, manifest: Dict[str, Any], namespace: str) -> Dict[str, Any]:
+    def apply_manifest(self, manifest, namespace: str = "default") -> dict:
         try:
-            # Usa o utils do kubernetes para criar a partir de dict
-            # Nota: create_from_dict retorna uma lista de objetos criados
-            utils.create_from_dict(self.api_client, manifest, namespace=namespace)
-            return {"status": "success", "message": f"Resource {manifest.get('kind')} applied."}
-        except ApiException as e:
-            # Se já existe (Conflict), tentamos fazer patch/replace? 
-            # Por simplicidade da v1.0, retornamos o erro.
-            # Numa v2, implementaríamos o "Apply" real (Server-Side Apply)
-            return {"status": "error", "message": str(e)}
+            # 1. Garante que o manifesto seja uma string no formato YAML
+            if isinstance(manifest, dict):
+                manifest_str = yaml.dump(manifest)
+            elif isinstance(manifest, list):
+                manifest_str = yaml.dump_all(manifest)
+            else:
+                manifest_str = str(manifest)
+
+            # 2. Executa o comando kubectl nativo injetando o YAML via stdin
+            process = subprocess.run(
+                ["kubectl", "apply", "-f", "-", "-n", namespace],
+                input=manifest_str,
+                text=True,
+                capture_output=True,
+                check=True
+            )
+            
+            return {"status": "success", "message": f"Sucesso:\n{process.stdout}"}
+            
+        except subprocess.CalledProcessError as e:
+            return {"status": "error", "message": f"Erro do K8s: {e.stderr}"}
         except Exception as ex:
-             return {"status": "error", "message": str(ex)}
+            return {"status": "error", "message": str(ex)}
 
     def delete_resource(self, resource_type: str, name: str, namespace: str) -> Any:
         try:

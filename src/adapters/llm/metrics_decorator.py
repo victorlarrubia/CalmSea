@@ -11,25 +11,41 @@ class LLMMonitorDecorator(LLMProviderInterface):
     def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         start_time = time.perf_counter()
         
-        # O truque: Chama o adapter real que retorna STRING (não quebra o front!)
         response_text = self.real_adapter.generate_text(prompt, system_instruction)
         
         duration = time.perf_counter() - start_time
-        
-        # O monitor olha para o "last_full_response" que o adapter salvou internamente
         tokens = self._get_tokens()
 
-        # Registra no CSV sem incomodar o fluxo principal
         self.collector.record(self.provider_name, self.model, duration, tokens, prompt)
         
         return response_text
 
+    def decide_tool(self, prompt, tools_schema, system_instruction=None):
+        start_time = time.perf_counter()
+        
+        # Chama o adapter real que devolve a ação
+        response = self.real_adapter.decide_tool(prompt, tools_schema, system_instruction)
+        
+        duration = time.perf_counter() - start_time
+        tokens = self._get_tokens()
+
+        # Agora o uso de ferramentas também é gravado no CSV!
+        self.collector.record(self.provider_name, self.model, duration, tokens, prompt)
+        
+        return response
+
     def _get_tokens(self) -> int:
         raw = getattr(self.real_adapter, 'last_full_response', {})
+        
+        # Tratamento seguro para Ollama (que salva como Dict)
         if self.provider_name.lower() == "ollama":
-            return raw.get('eval_count', 0)
-        # Se for OpenAI, extrai do objeto Usage
-        return getattr(getattr(raw, 'usage', {}), 'total_tokens', 0)
-
-    def decide_tool(self, prompt, tools_schema, system_instruction=None):
-        return self.real_adapter.decide_tool(prompt, tools_schema, system_instruction)
+            if isinstance(raw, dict):
+                # Soma os tokens de entrada (prompt) e saída (eval)
+                return raw.get('prompt_eval_count', 0) + raw.get('eval_count', 0)
+            return 0
+            
+        # Tratamento seguro para OpenAI (que salva como Objeto Pydantic)
+        if hasattr(raw, 'usage') and raw.usage is not None:
+            return getattr(raw.usage, 'total_tokens', 0)
+            
+        return 0

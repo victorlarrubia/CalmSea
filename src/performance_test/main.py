@@ -10,9 +10,12 @@ from src.infrastructure.metrics.collector import TCCMetricsCollector
 
 class PerformanceTestRunner:
     def __init__(self):
-        self.models = ["qwen3-coder:30b", "qwen2.5-coder:32b", "qwen3.5:27b", "o4-mini"]
-        self.yamls = ["1-orion.yaml", "4-vllm.yaml", "5-nginx.yaml", "6-selenium.yaml", 
-                      "7-elasticsearch.yaml", "8-newrelic.yaml", "9-storm.yaml", "10-mongodb.yaml"]
+        self.models = ["o4-mini"]
+        self.yamls = [
+            "1-orion.yaml", "2-frontend.yaml", "3-mysql.yaml", "4-vllm.yaml", 
+            "5-nginx.yaml", "6-selenium.yaml", "7-elasticsearch.yaml", 
+            "8-newrelic.yaml", "9-storm.yaml", "10-mongodb.yaml"
+        ]
         self.reps = 5
         self.collector = TCCMetricsCollector()
 
@@ -42,10 +45,26 @@ class PerformanceTestRunner:
                     os.system(f"kubectl apply -f docs/tests/scenarios/{yaml}")
                     time.sleep(3) # Wait for K8s
 
+                    # 3. Ler o conteúdo do arquivo YAML para enviar à IA
+                    yaml_path = f"docs/tests/scenarios/{yaml}"
+                    try:
+                        with open(yaml_path, "r") as f:
+                            yaml_content = f.read()
+                    except FileNotFoundError:
+                        print(f"❌ Arquivo não encontrado: {yaml_path}")
+                        continue
+
                     # 3, 4, 5 & 6. Ciclo do Agente
                     agent = self.get_agent(model)
-                    analysis = agent.run(f"Analise os recursos no arquivo {yaml} buscando misconfigs.")
-                    fix_res = agent.run("Aplique as correções necessárias para produção.")
+
+                    sys_analise = "Você é um auditor de segurança K8s sênior. Sua resposta deve listar os erros encontrados."
+                    prompt_analise = f"""Analise este YAML de produção:\n\n{yaml_content}\n"""
+                    # Forçando a instrução de sistema através do agent.run (que repassa pro llm_provider)
+                    analysis = agent.run(prompt_analise, system_instruction=sys_analise)
+
+                    sys_fix = "Você é uma automação de infraestrutura. VOCÊ ESTÁ PROIBIDO DE EXPLICAR OU RESPONDER COM TEXTO. SUA ÚNICA FUNÇÃO É USAR A FERRAMENTA 'apply_manifest' COM O YAML CORRIGIDO."
+                    prompt_fix = f"""Aqui está o YAML original com problemas: {yaml_content} Gere o YAML corrigido (credenciais, imagens e seletores) e APLIQUE-O IMEDIATAMENTE usando a ferramenta apply_manifest. NÃO ESCREVA TEXTO, APENAS CHAME A FERRAMENTA."""
+                    fix_res = agent.run(prompt_fix, system_instruction=sys_fix)
                     
                     # 7. Verificação Final
                     verify = os.popen("kubectl get pods").read()
