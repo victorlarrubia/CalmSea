@@ -1,1 +1,12 @@
 timestamp,provider,model,duration,tokens,prompt_preview
+2026-03-25T00:43:08.907470,OpenAI,o4-mini,11.0159,2443,"Analise este YAML de produção:
+
+apiVersion: apps/v"
+2026-03-25T00:43:37.171165,OpenAI,o4-mini,28.2635,4920,Aqui está o YAML original com problemas: apiVersio
+2026-03-25T00:43:49.981936,OpenAI,o4-mini,8.1994,2286,"Analise este YAML de produção:
+
+apiVersion: apps/v"
+2026-03-25T00:44:13.569997,OpenAI,o4-mini,23.5879,3257,Aqui está o YAML original com problemas: apiVersio
+2026-03-25T00:44:31.539807,OpenAI,o4-mini,13.4045,2384,"Analise este YAML de produção:
+
+apiVersion: apps/v"
