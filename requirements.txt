@@ -77,6 +77,7 @@ pydocket==0.17.5
 Pygments==2.19.2
 PyJWT==2.11.0
 pyperclip==1.11.0
+pytest==8.1.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-json-logger==4.0.0
