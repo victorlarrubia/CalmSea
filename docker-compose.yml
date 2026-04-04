@@ -1,4 +1,37 @@
 services:
+
+# --- TESTES UNITÁRIOS ---
+  # Focados em lógica pura, sem depender de rede ou K8s real (usa mocks)
+  tests-unit:
+    build: .
+    container_name: agentk-tests-unit
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    command: ["python3", "-m", "pytest", "tests/unit"]
+
+  # --- TESTES DE INTEGRAÇÃO ---
+  # Testa o fluxo real: Agente -> MCP -> Kubernetes
+  tests-integration:
+    build: .
+    container_name: agentk-tests-integration
+    network_mode: "host" # Essencial para falar com o Minikube local/remoto
+    depends_on:
+      - servermcp
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONPATH=/app
+      - KUBECONFIG=/root/.kube/config
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./remote-kubeconfig.yaml:/root/.kube/config
+      - ./certs-remotos:/app/certs
+    # Roda especificamente o seu fluxo completo
+    command: ["python3", "tests/integration/test_full_agent_flow.py"]
+
   # --- O SERVIDOR DE FERRAMENTAS (MCP) ---
   servermcp:
     build: 

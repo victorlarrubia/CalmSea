@@ -10,7 +10,11 @@ from src.infrastructure.metrics.collector import TCCMetricsCollector
 
 class PerformanceTestRunner:
     def __init__(self):
+        # adicione aqui os modelos que deseja testar
         self.models = ["o4-mini"]
+
+        # adicione aqui os arquivos YAML que deseja testar, seguindo a nomenclatura "1-orion.yaml", "2-frontend.yaml", etc.
+        # os arquivos devem estar na pasta "docs/tests/scenarios/" 
         self.yamls = [
             "1-orion.yaml", "2-frontend.yaml", "3-mysql.yaml", "4-vllm.yaml", 
             "5-nginx.yaml", "6-selenium.yaml", "7-elasticsearch.yaml", 
