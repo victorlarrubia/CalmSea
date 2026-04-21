@@ -166,6 +166,10 @@ docker compose --profile amd up -d performancetest
 
 docker compose --profile nvidia up -d performancetest
 
+## ver log de execução
+
+docker logs -f performance-test
+
 # EXECUÇÃO UTILIZANDO APENAS OPENAI
 
 docker compose up performancetest
