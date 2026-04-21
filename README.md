@@ -155,6 +155,19 @@ O serviço de performance é responsável por rodar os testes de carga e anális
 ```bash
 # 1. Execute o container dedicado ao benchmark:
 docker compose build --no-cache performancetest
+
+# EXECUÇAO COM OLLAMA
+
+## AMD
+
+docker compose --profile amd up -d performancetest
+
+## NVIDIA
+
+docker compose --profile nvidia up -d performancetest
+
+# EXECUÇÃO UTILIZANDO APENAS OPENAI
+
 docker compose up performancetest
 
 # 2. Coleta de Dados: 
