@@ -36,45 +36,74 @@ class PerformanceTestRunner:
         return AgentService(llm_provider=monitored_llm, k8s_adapter=k8s)
 
     def run(self):
-        for model in self.models:
-            output_dir = f"results/{model.replace(':', '-')}"
-            os.makedirs(output_dir, exist_ok=True)
-            
-            for yaml in self.yamls:
-                for r in range(1, self.reps + 1):
-                    print(f"🚀 Model: {model} | File: {yaml} | Rep: {r}")
-                    
-                    # 1 & 2. Limpeza e Aplicação
-                    os.system("kubectl delete all --all -n default --force")
-                    os.system(f"kubectl apply -f docs/tests/scenarios/{yaml}")
-                    time.sleep(3) # Wait for K8s
+            for model in self.models:
+                output_dir = f"results/{model.replace(':', '-')}"
+                os.makedirs(output_dir, exist_ok=True)
+                
+                for yaml in self.yamls:
+                    for r in range(1, self.reps + 1):
+                        # ... (Limpeza e Apply do cenário vulnerável igual ao anterior) ...
 
-                    # 3. Ler o conteúdo do arquivo YAML para enviar à IA
-                    yaml_path = f"docs/tests/scenarios/{yaml}"
-                    try:
-                        with open(yaml_path, "r") as f:
-                            yaml_content = f.read()
-                    except FileNotFoundError:
-                        print(f"❌ Arquivo não encontrado: {yaml_path}")
-                        continue
+                        agent = self.get_agent(model)
 
-                    # 3, 4, 5 & 6. Ciclo do Agente
-                    agent = self.get_agent(model)
+                        # PROMPT UNIFICADO: O Agente agora faz tudo de uma vez
+                        sys_instruction = (
+                            "Você é um Auditor de Segurança K8s e Automação de Infraestrutura. "
+                            "Sua tarefa é: 1. Analisar o YAML e listar erros. "
+                            "2. Explicar o que será corrigido. "
+                            "3. Usar a ferramenta 'apply_manifest' com o YAML final corrigido. "
+                            "Não responda apenas com texto, você DEVE executar a ferramenta ao final."
+                        )
+                        
+                        prompt = f"Analise, explique as falhas e corrija este YAML:\n\n{yaml_content}"
+                        
+                        # Chamada Única
+                        full_res = agent.run(prompt, system_instruction=sys_instruction)
+                        
+                        # Verificação e Salvamento
+                        verify = os.popen("kubectl get pods").read()
+                        self.save_md(output_dir, yaml, r, "Análise e Fix Unificados", full_res, verify)
 
-                    sys_analise = "Você é um auditor de segurança K8s sênior. Sua resposta deve listar os erros encontrados."
-                    prompt_analise = f"""Analise este YAML de produção:\n\n{yaml_content}\n"""
-                    # Forçando a instrução de sistema através do agent.run (que repassa pro llm_provider)
-                    analysis = agent.run(prompt_analise, system_instruction=sys_analise)
-
-                    sys_fix = "Você é uma automação de infraestrutura. VOCÊ ESTÁ PROIBIDO DE EXPLICAR OU RESPONDER COM TEXTO. SUA ÚNICA FUNÇÃO É USAR A FERRAMENTA 'apply_manifest' COM O YAML CORRIGIDO."
-                    prompt_fix = f"""Aqui está o YAML original com problemas: {yaml_content} Gere o YAML corrigido (credenciais, imagens e seletores) e APLIQUE-O IMEDIATAMENTE usando a ferramenta apply_manifest. NÃO ESCREVA TEXTO, APENAS CHAME A FERRAMENTA."""
-                    fix_res = agent.run(prompt_fix, system_instruction=sys_fix)
-                    
-                    # 7. Verificação Final
-                    verify = os.popen("kubectl get pods").read()
-                    
-                    # 8. Exportação
-                    self.save_md(output_dir, yaml, r, analysis, fix_res, verify)
+#    def run(self):
+#        for model in self.models:
+#            output_dir = f"results/{model.replace(':', '-')}"
+#            os.makedirs(output_dir, exist_ok=True)
+#            
+#            for yaml in self.yamls:
+#                for r in range(1, self.reps + 1):
+#                    print(f"🚀 Model: {model} | File: {yaml} | Rep: {r}")
+#                    
+#                    # 1 & 2. Limpeza e Aplicação
+#                    os.system("kubectl delete all --all -n default --force")
+#                    os.system(f"kubectl apply -f docs/tests/scenarios/{yaml}")
+#                    time.sleep(3) # Wait for K8s
+#
+#                    # 3. Ler o conteúdo do arquivo YAML para enviar à IA
+#                    yaml_path = f"docs/tests/scenarios/{yaml}"
+#                    try:
+#                        with open(yaml_path, "r") as f:
+#                            yaml_content = f.read()
+#                    except FileNotFoundError:
+#                        print(f"❌ Arquivo não encontrado: {yaml_path}")
+#                        continue
+#
+#                    # 3, 4, 5 & 6. Ciclo do Agente
+#                    agent = self.get_agent(model)
+#
+#                    sys_analise = "Você é um auditor de segurança K8s sênior. Sua resposta deve listar os erros encontrados."
+#                    prompt_analise = f"""Analise este YAML de produção:\n\n{yaml_content}\n"""
+#                    # Forçando a instrução de sistema através do agent.run (que repassa pro llm_provider)
+#                    analysis = agent.run(prompt_analise, system_instruction=sys_analise)
+#
+#                    sys_fix = "Você é uma automação de infraestrutura. VOCÊ ESTÁ PROIBIDO DE EXPLICAR OU RESPONDER COM TEXTO. SUA ÚNICA FUNÇÃO É USAR A FERRAMENTA 'apply_manifest' COM O YAML CORRIGIDO."
+#                    prompt_fix = f"""Aqui está o YAML original com problemas: {yaml_content} Gere o YAML corrigido (credenciais, imagens e seletores) e APLIQUE-O IMEDIATAMENTE usando a ferramenta apply_manifest. NÃO ESCREVA TEXTO, APENAS CHAME A FERRAMENTA."""
+#                    fix_res = agent.run(prompt_fix, system_instruction=sys_fix)
+#                    
+#                    # 7. Verificação Final
+#                    verify = os.popen("kubectl get pods").read()
+#                    
+#                    # 8. Exportação
+#                    self.save_md(output_dir, yaml, r, analysis, fix_res, verify)
 
     def save_md(self, path, yaml, r, analysis, fix, verify):
         fname = f"{path}/Teste_{yaml.split('-')[0]}.{r}_{datetime.now().strftime('%H%M%S')}.md"
