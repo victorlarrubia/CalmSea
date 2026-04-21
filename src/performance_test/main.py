@@ -36,33 +36,50 @@ class PerformanceTestRunner:
         return AgentService(llm_provider=monitored_llm, k8s_adapter=k8s)
 
     def run(self):
-            for model in self.models:
-                output_dir = f"results/{model.replace(':', '-')}"
-                os.makedirs(output_dir, exist_ok=True)
-                
-                for yaml in self.yamls:
-                    for r in range(1, self.reps + 1):
-                        # ... (Limpeza e Apply do cenário vulnerável igual ao anterior) ...
+        for model in self.models:
+            output_dir = f"results/{model.replace(':', '-')}"
+            os.makedirs(output_dir, exist_ok=True)
+            
+            for yaml in self.yamls:
+                for r in range(1, self.reps + 1):
+                    print(f"🚀 Model: {model} | File: {yaml} | Rep: {r}")
+                    
+                    # 1. Limpeza e Aplicação do cenário original
+                    os.system("kubectl delete deployment,pod,svc,hpa,daemonset,rc --all -n default --force --grace-period=0 > /dev/null 2>&1")
+                    os.system(f"kubectl apply -f docs/tests/scenarios/{yaml} > /dev/null 2>&1")
+                    time.sleep(5) # Delay para o Minikube-Docker processar
 
-                        agent = self.get_agent(model)
+                    # 2. Leitura do YAML
+                    yaml_path = f"docs/tests/scenarios/{yaml}"
+                    try:
+                        with open(yaml_path, "r") as f:
+                            yaml_content = f.read()
+                    except FileNotFoundError:
+                        print(f"❌ Arquivo não encontrado: {yaml_path}")
+                        continue
 
-                        # PROMPT UNIFICADO: O Agente agora faz tudo de uma vez
-                        sys_instruction = (
-                            "Você é um Auditor de Segurança K8s e Automação de Infraestrutura. "
-                            "Sua tarefa é: 1. Analisar o YAML e listar erros. "
-                            "2. Explicar o que será corrigido. "
-                            "3. Usar a ferramenta 'apply_manifest' com o YAML final corrigido. "
-                            "Não responda apenas com texto, você DEVE executar a ferramenta ao final."
-                        )
-                        
-                        prompt = f"Analise, explique as falhas e corrija este YAML:\n\n{yaml_content}"
-                        
-                        # Chamada Única
-                        full_res = agent.run(prompt, system_instruction=sys_instruction)
-                        
-                        # Verificação e Salvamento
-                        verify = os.popen("kubectl get pods").read()
-                        self.save_md(output_dir, yaml, r, "Análise e Fix Unificados", full_res, verify)
+                    # 3. Ciclo Único do Agente (Análise + Explicação + Fix)
+                    agent = self.get_agent(model)
+
+                    sys_instruction = (
+                        "Você é um Auditor de Segurança K8s e Automação de Infraestrutura. "
+                        "Sua tarefa é: 1. Analisar o YAML e listar erros. "
+                        "2. Explicar didaticamente o que será corrigido. "
+                        "3. Usar a ferramenta 'apply_manifest' com o YAML final corrigido."
+                    )
+                    
+                    prompt = f"Analise, explique as falhas e aplique as correções para este YAML:\n\n{yaml_content}"
+                    
+                    # Chamada única: mais rápido e mantém o contexto
+                    full_res = agent.run(prompt, system_instruction=sys_instruction)
+                    
+                    # 4. Verificação e Salvamento
+                    time.sleep(2)
+                    verify = os.popen("kubectl get pods,svc").read()
+                    
+                    # Salvamos a resposta completa (Explicação + JSON da Tool)
+                    self.save_md(output_dir, yaml, r, "Análise e Explicação", full_res, verify)
+                    print(f"✅ Rep {r} concluída.")
 
 #    def run(self):
 #        for model in self.models:
