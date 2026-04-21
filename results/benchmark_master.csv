@@ -1,12 +1,90 @@
-timestamp,provider,model,duration,tokens,prompt_preview
-2026-03-25T00:43:08.907470,OpenAI,o4-mini,11.0159,2443,"Analise este YAML de produção:
+timestamp,provider,model,duration,tokens,gpu_status,prompt,response
+2026-04-21T20:25:55.135633,Ollama,llama3.1,196.306,0,100% CPU,"Analise este YAML de produção:
 
-apiVersion: apps/v"
-2026-03-25T00:43:37.171165,OpenAI,o4-mini,28.2635,4920,Aqui está o YAML original com problemas: apiVersio
-2026-03-25T00:43:49.981936,OpenAI,o4-mini,8.1994,2286,"Analise este YAML de produção:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fiware-orionld
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: orionld
+  template:
+    metadata:
+      name: fiware-orion
+      labels:
+        app: orionld
+    spec:
+      containers:
+      - name: orion
+        image: fiware/orion-ld
+        resources:
+          requests:
+            cpu: ""100m"" 
+            memory: ""100Mi"" 
+          limits:
+            cpu: ""500m"" 
+            memory: ""500Mi"" 
+        args: [""-dbhost"", ""orionld-mongodb-svc:27017"",""-rplSet"",""orionld-mongodb"",""-dbuser"",""usuariozão"",""-dbpwd"",""123456789"",""-dbAuthMech"",""SCRAM-SHA-256"",""-db"",""orion"",""-statCounters"", ""-statSemWait"", ""-statTiming"", ""-statNotifQueue""]
+        ports:
+        - containerPort: 1026
+        env:
+        - name: ORIONLD_MONGOCONLY
+          value: ""TRUE""
+        - name: DB_PASSWORD
+          value: ""hardcoded-password-123""
+        - name: API_KEY
+          value: ""sk-1234567890abcdef""
+        livenessProbe:
+          httpGet:
+            path: /version
+            port: 1026
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /version
+            port: 1026
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fiware-orionld-service
+spec:
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 1027
+      targetPort: 1026
+  selector:
+    app: orionlds
 
-apiVersion: apps/v"
-2026-03-25T00:44:13.569997,OpenAI,o4-mini,23.5879,3257,Aqui está o YAML original com problemas: apiVersio
-2026-03-25T00:44:31.539807,OpenAI,o4-mini,13.4045,2384,"Analise este YAML de produção:
-
-apiVersion: apps/v"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fiware-orionld-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fiware-orionld
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 30
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+","{'action': 'reply', 'content': 'Para analisar o YAML de produção fornecido, podemos usar a função `list_resources` para verificar se os recursos listados no arquivo existem no namespace. No entanto, se desejamos obter mais informações sobre esses recursos, podemos usar as funções `get_resource_details` para obter detalhes completos dos recursos.\n\nAqui está um exemplo de como chamar as funções:\n\n```json\n{\n  ""name"": ""list_resources"",\n  ""parameters"": {\n    ""namespace"": ""default"", // namespace do YAML fornecido\n    ""resource_types"": [""deployments"", ""services"", ""horizontalpodautoscalers""]\n  }\n}\n```\n\nIsso nos dará uma lista de recursos que existem no namespace. Em seguida, podemos chamar a função `get_resource_details` para obter detalhes completos desses recursos.\n\n```json\n{\n  ""name"": ""get_resource_details"",\n  ""parameters"": {\n    ""namespace"": ""default"", // namespace do YAML fornecido\n    ""resource_type"": ""deployment"",\n    ""name"": ""fiware-orionld""\n  }\n}\n```\n\nEssa função nos dará detalhes completos sobre o deployment `fiware-orionld` no namespace `default`.\n\nSe desejamos obter detalhes completos sobre outros recursos listados no YAML, podemos chamar a mesma função novamente com os nomes e tipos de recurso correspondentes.\n\nOs erros encontrados no arquivo YAML fornecido foram:\n\n- No deployment `fiware-orionld`, o campo `args` da configuração do container tem argumentos hardcoded que podem ser um problema de segurança.\n- O serviço `fiware-orionld-service` não tem um campo `selector` definido corretamente, pois a seleção de pods é feita pelo campo `app`.\n- O HPA (Horizontal Pod Autoscaler) `fiware-orionld-hpa` tem metas de escalabilidade para CPU e memória que podem ser muito altas e gerar problemas de desempenho.\n\nEsses erros precisam ser avaliados mais a fundo e possivelmente corrigidos para garantir a segurança e o desempenho do sistema.'}"
