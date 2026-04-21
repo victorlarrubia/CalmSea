@@ -60,7 +60,7 @@ AgentK é um assistente inteligente especializado em **análise, otimização e 
 
 ```bash
 # 1. Clone e configure
-git clone https://github.com/viniolimpio3/AgentK-MCP.git
+git clone https://github.com/VitorDie/AgentK-MCP.git
 cd AgentK-MCP
 ```
 
