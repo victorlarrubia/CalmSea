@@ -1,26 +1,64 @@
 import os
 import time
+import json
 
 class K8sHealthChecker:
-    def check_health(self, ns, timeout=60):
-        # Correção 4: Validação de estados reais de erro do K8s
+    def check_health(self, ns, timeout=120): # Aumentamos o timeout para 120s (importante para CPU)
         start = time.time()
-        fail_states = ["CrashLoopBackOff", "Error", "ImagePullBackOff", "ErrImagePull"]
+        # Estados que indicam que a "Vontade Técnica" falhou categoricamente
+        fail_states = ["CrashLoopBackOff", "Error", "ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError"]
         
         while time.time() - start < timeout:
-            cmd = f"kubectl get pods -n {ns} --no-headers"
-            pods = os.popen(cmd).readlines()
-            
-            if not pods: 
-                time.sleep(2); continue
+            # 1. Captura em JSON para precisão cirúrgica
+            cmd = f"kubectl get pods -n {ns} -o json"
+            try:
+                output = os.popen(cmd).read()
+                if not output or output.strip() == "":
+                    print(f"[*] {ns}: Aguardando criação dos recursos...")
+                    time.sleep(5)
+                    continue
                 
-            states = [p.split()[2] for p in pods]
+                data = json.loads(output)
+                pods = data.get('items', [])
+                
+                if not pods:
+                    time.sleep(5)
+                    continue
+
+                all_ready = True
+                current_statuses = []
+
+                for pod in pods:
+                    pod_name = pod['metadata']['name']
+                    status_obj = pod.get('status', {})
+                    phase = status_obj.get('phase', 'Unknown')
+                    
+                    # Verificação profunda nos containers
+                    container_statuses = status_obj.get('containerStatuses', [])
+                    for cs in container_statuses:
+                        state = cs.get('state', {})
+                        # Se algum container estiver em estado de erro conhecido
+                        waiting_reason = state.get('waiting', {}).get('reason', '')
+                        if waiting_reason in fail_states:
+                            return False, f"Falha Crítica no Pod {pod_name}: {waiting_reason}"
+                        
+                        # Se o container não estiver 'ready', o ambiente ainda não é soberano
+                        if not cs.get('ready', False):
+                            all_ready = False
+                    
+                    if phase != "Running" and phase != "Succeeded":
+                        all_ready = False
+                    
+                    current_statuses.append(f"{pod_name}:{phase}")
+
+                if all_ready:
+                    return True, "Sucesso: Ambiente íntegro e estável"
+
+                print(f"[*] {ns}: Estabilizando pods... ({', '.join(current_statuses)})")
+
+            except Exception as e:
+                print(f"[!] Erro no Health Check: {e}")
             
-            if any(s in fail_states for s in states):
-                return False, f"Falha: {', '.join(states)}"
-            
-            if all(s in ["Running", "Completed"] for s in states):
-                return True, "Sucesso: Ambiente íntegro"
-            
-            time.sleep(3)
-        return False, "Timeout: Pods não estabilizaram"
+            time.sleep(5) # Intervalo maior para não sobrecarregar a CPU do benchmark
+
+        return False, "Timeout: Os recursos não atingiram estabilidade no tempo previsto"

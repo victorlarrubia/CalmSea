@@ -1,7 +1,7 @@
 # Relatório: 9-storm.yaml - Rep 1
 
-## Status Final: ❌ FALHA
-**Veredito:** Falha: ContainerCreating, Error
+## Status Final: ✅ SUCESSO
+**Veredito:** Sucesso: Ambiente íntegro e estável
 
 ---
 
@@ -31,13 +31,12 @@ Se precisar de mais alguma coisa ou de ajustes adicionais, estou à disposição
 
 ## 📋 Cluster Snapshot
 ```
-NAME                                           READY   STATUS              RESTARTS   AGE
-pod/storm-worker-controller-654c85d79d-g46tl   0/1     ContainerCreating   0          22s
-pod/storm-worker-controller-654c85d79d-gqdcw   0/1     Error               0          37s
+NAME                                           READY   STATUS    RESTARTS   AGE
+pod/storm-worker-controller-654c85d79d-rwmdv   1/1     Running   0          24s
 
 NAME                                      READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/storm-worker-controller   0/1     1            0           22s
+deployment.apps/storm-worker-controller   1/1     1            1           24s
 
 NAME                                                 DESIRED   CURRENT   READY   AGE
-replicaset.apps/storm-worker-controller-654c85d79d   1         1         0       22s
+replicaset.apps/storm-worker-controller-654c85d79d   1         1         1       24s
 ```

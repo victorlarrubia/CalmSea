@@ -75,15 +75,26 @@ class K8sServiceAdapter(K8sServiceInterface):
         results = {}
         try:
             for r_type in r_types_list:
-                t = r_type.lower()
-                if t == 'pods':
+                # Normalização rigorosa: minúsculo e sem espaços
+                t = r_type.lower().strip()
+                
+                if t in ['pod', 'pods']:
                     items = self.core_v1.list_namespaced_pod(namespace).items
-                elif t == 'services':
+                elif t in ['service', 'services', 'svc']:
                     items = self.core_v1.list_namespaced_service(namespace).items
-                elif t == 'deployments':
+                elif t in ['deployment', 'deployments', 'deploy']:
                     items = self.apps_v1.list_namespaced_deployment(namespace).items
                 elif t in ['hpa', 'horizontalpodautoscalers']:
                     items = self.autoscaling_v2.list_namespaced_horizontal_pod_autoscaler(namespace).items
+                
+                # --- NOVOS TIPOS PARA INTEGRAR COM A FAXINA ---
+                elif t in ['replicationcontroller', 'replicationcontrollers', 'rc']:
+                    items = self.core_v1.list_namespaced_replication_controller(namespace).items
+                elif t in ['daemonset', 'daemonsets', 'ds']:
+                    items = self.apps_v1.list_namespaced_daemon_set(namespace).items
+                elif t in ['statefulset', 'statefulsets', 'sts']:
+                    items = self.apps_v1.list_namespaced_stateful_set(namespace).items
+                
                 else:
                     logger.warning(f"Tipo {r_type} não suportado na listagem.")
                     continue
@@ -92,17 +103,14 @@ class K8sServiceAdapter(K8sServiceInterface):
             
             # 2. Normalização do output para manter os testes unitários passando
             if single_mode:
-                # Se foi pedida uma string, retorna apenas a lista de nomes daquele recurso
                 return results.get(r_types_list[0], [])
             
-            # Se foi pedida uma lista, retorna o dicionário completo {tipo: [nomes]}
             return results
 
         except ApiException as e:
             logger.error(f"Erro na listagem de recursos: {e}")
-            # RETORNE O ERRO, não uma lista vazia!
             error_msg = f"Erro na API K8s: {e.reason} (Status: {e.status})"
-            return [error_msg] if single_mode else {"error": error_msg} 
+            return [error_msg] if single_mode else {"error": error_msg}
 
     def get_resource_details(self, resource_type: str, name: str, namespace: str) -> Dict[str, Any]:
         try:
@@ -199,7 +207,9 @@ class K8sServiceAdapter(K8sServiceInterface):
 
     def delete_resource(self, resource_type: str, name: str, namespace: str) -> Dict[str, str]:
         try:
+            # Normalização rigorosa para evitar erros de case (ex: DaemonSet vs daemonset)
             t = resource_type.lower().strip()
+            
             if t in ['pod', 'pods']:
                 self.core_v1.delete_namespaced_pod(name, namespace)
             elif t in ['service', 'services', 'svc']:
@@ -208,12 +218,25 @@ class K8sServiceAdapter(K8sServiceInterface):
                 self.apps_v1.delete_namespaced_deployment(name, namespace)
             elif t in ['hpa', 'horizontalpodautoscalers']:
                 self.autoscaling_v2.delete_namespaced_horizontal_pod_autoscaler(name, namespace)
+            # --- NOVOS TIPOS SUPORTADOS ---
+            elif t in ['replicationcontroller', 'rc']:
+                self.core_v1.delete_namespaced_replication_controller(name, namespace)
+            elif t in ['daemonset', 'daemonsets', 'ds']:
+                self.apps_v1.delete_namespaced_daemon_set(name, namespace)
+            elif t in ['statefulset', 'statefulsets', 'sts']:
+                self.apps_v1.delete_namespaced_stateful_set(name, namespace)
             else:
                 return {"status": "error", "message": f"Tipo '{resource_type}' não suportado para deleção."}
             
             return {"status": "success", "message": f"{resource_type} {name} deletado com sucesso."}
+
         except ApiException as e:
-            return {"status": "error", "message": f"Falha ao deletar: {e.reason}"}
+            # SE O RECURSO NÃO EXISTE (404): No "Zazen e Faxina", isso é um sucesso
+            if e.status == 404:
+                return {"status": "success", "message": f"{resource_type} {name} já não existia ou já foi removido."}
+            
+            # Outros erros (permissão, timeout, etc)
+            return {"status": "error", "message": f"Falha ao deletar {resource_type}: {e.reason}"}
 
     def scale_resource(self, resource_type: str, name: str, namespace: str, replicas: int) -> Any:
         try:

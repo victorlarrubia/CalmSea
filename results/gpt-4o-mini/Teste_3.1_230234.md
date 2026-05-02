@@ -1,7 +1,7 @@
 # Relatório: 3-mysql.yaml - Rep 1
 
 ## Status Final: ❌ FALHA
-**Veredito:** Timeout: Pods não estabilizaram
+**Veredito:** Timeout: Os recursos não atingiram estabilidade no tempo previsto
 
 ---
 
@@ -12,11 +12,11 @@ O pod "mysql" foi deletado com sucesso e, em seguida, foi recriado com as corre�
 
 2. **Imagem do Container**: A imagem "my-sql" foi mantida, mas é importante garantir que a imagem correta e estável esteja sendo utilizada.
 
-3. **Política de Pull da Imagem**: A política de pull da imagem foi mantida como "Always", o que é adequado para ambientes de produção, garantindo que a versão mais recente da imagem seja utilizada.
+3. **Política de Pull da Imagem**: A política de pull da imagem foi mantida como "Always", o que é adequado para ambientes de desenvolvimento, mas pode ser ajustado para "IfNotPresent" em produção, dependendo da estratégia de deploy.
 
 4. **Recursos**: As solicitações e limites de recursos foram mantidos, mas é sempre bom revisar se estão adequados para a carga esperada.
 
-Se precisar de mais alguma coisa ou de mais ajustes, estou à disposição!
+Se precisar de mais alguma coisa ou de ajustes adicionais, estou à disposição!
 
 ## 🛠️ Fix Aplicado
 ```yaml
@@ -26,15 +26,15 @@ O pod "mysql" foi deletado com sucesso e, em seguida, foi recriado com as corre�
 
 2. **Imagem do Container**: A imagem "my-sql" foi mantida, mas é importante garantir que a imagem correta e estável esteja sendo utilizada.
 
-3. **Política de Pull da Imagem**: A política de pull da imagem foi mantida como "Always", o que é adequado para ambientes de produção, garantindo que a versão mais recente da imagem seja utilizada.
+3. **Política de Pull da Imagem**: A política de pull da imagem foi mantida como "Always", o que é adequado para ambientes de desenvolvimento, mas pode ser ajustado para "IfNotPresent" em produção, dependendo da estratégia de deploy.
 
 4. **Recursos**: As solicitações e limites de recursos foram mantidos, mas é sempre bom revisar se estão adequados para a carga esperada.
 
-Se precisar de mais alguma coisa ou de mais ajustes, estou à disposição!
+Se precisar de mais alguma coisa ou de ajustes adicionais, estou à disposição!
 ```
 
 ## 📋 Cluster Snapshot
 ```
 NAME        READY   STATUS              RESTARTS   AGE
-pod/mysql   0/1     ContainerCreating   0          67s
+pod/mysql   0/1     ContainerCreating   0          2m5s
 ```
