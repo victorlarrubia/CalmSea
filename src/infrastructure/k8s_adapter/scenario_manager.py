@@ -1,4 +1,5 @@
 import os
+import time
 
 class K8sScenarioManager:
     def __init__(self):
@@ -14,12 +15,33 @@ class K8sScenarioManager:
         base = yaml_file.replace(".yaml", "")
         ns = self.ns_map.get(base, "default")
         
-        # Correção 2.2: Limpeza isolada por Namespace
-        os.system(f"kubectl delete namespace {ns} --ignore-not-found")
-        os.system(f"kubectl create namespace {ns}")
+        # 1. A Antítese: Gatilho de destruição total
+        # --force e --grace-period=0 aceleram a remoção de recursos teimosos
+        print(f"[*] Iniciando faxina no namespace: {ns}")
+        os.system(f"kubectl delete namespace {ns} --ignore-not-found --grace-period=0 --force > /dev/null 2>&1")
         
-        # Aplica o cenário vulnerável no namespace correto
-        os.system(f"kubectl apply -f docs/tests/scenarios/{yaml_file} -n {ns}")
+        # 2. O Zazen da Infra: Loop de espera ativa
+        # Verificamos se o namespace ainda existe no domínio do real
+        retries = 0
+        while os.system(f"kubectl get namespace {ns} > /dev/null 2>&1") == 0:
+            if retries > 30: # Timeout de 60 segundos (30 * 2s)
+                print(f"[!] Alerta: O namespace {ns} está em 'limbo' (Terminating). Forçando continuidade...")
+                break
+            time.sleep(2)
+            retries += 1
+        
+        # 3. A Síntese: Reconstrução do território
+        print(f"[*] Reconstruindo ambiente para o cenário: {yaml_file}")
+        os.system(f"kubectl create namespace {ns} > /dev/null 2>&1")
+        
+        # Aplica o cenário vulnerável no namespace limpo
+        exit_code = os.system(f"kubectl apply -f docs/tests/scenarios/{yaml_file} -n {ns} > /dev/null 2>&1")
+        
+        if exit_code != 0:
+            print(f"[❌] Falha crítica ao aplicar o cenário {yaml_file} no namespace {ns}.")
+        else:
+            print(f"[✅] Ambiente pronto e isolado: {ns}")
+            
         return ns
 
     def get_live_yaml(self, ns, yaml_path):

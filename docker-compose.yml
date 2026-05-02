@@ -41,6 +41,7 @@ services:
     network_mode: "host" # Mantém a simplicidade para o túnel SSH
     environment:
       - PYTHONPATH=/app
+      - OLLAMA_BASE_URL=http://127.0.0.1:11434
     volumes:
       - ./src:/app/src
       - ./remote-kubeconfig.yaml:/root/.kube/config
@@ -77,6 +78,8 @@ services:
     container_name: ollama-nvidia
     profiles: ["nvidia"] # Só sobe se você chamar o perfil nvidia
     network_mode: "host"
+    environment:
+      - OLLAMA_HOST=0.0.0.0 
     volumes:
       - ollama_data:/root/.ollama
     deploy:
@@ -101,13 +104,32 @@ services:
     environment:
       - HSA_OVERRIDE_GFX_VERSION=8.0.3
       - HSA_ENABLE_SDMA=0
+      - OLLAMA_HOST=0.0.0.0
+
+  # --- OPÇÃO CPU (Fallback) ---
+  ollama-cpu:
+    image: ollama/ollama:latest
+    container_name: ollama-cpu
+    network_mode: "host"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_data:/root/.ollama
 
   # --- DOWNLOADER (Adaptável) ---
   ollama-puller:
     image: ollama/ollama:latest
     container_name: ollama-puller
-    network_mode: "host"
-    entrypoint: ["/bin/sh", "-c", "sleep 20 && ollama pull llama3.1 && ollama pull qwen:0.5b"] 
+    network_mode: "host"  # <--- Isso faz o container enxergar o localhost do seu Ubuntu
+    environment:
+      - OLLAMA_HOST=127.0.0.1:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: 
+      - |
+        echo "Aguardando servidor no host..."
+        sleep 10
+        ollama pull llama3.1:8b
+        ollama pull qwen:0.5b 
 
   # --- TESTE DE PERFORMANCE ---
   performancetest:

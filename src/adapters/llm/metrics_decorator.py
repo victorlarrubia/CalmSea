@@ -21,18 +21,35 @@ class LLMMonitorDecorator(LLMProviderInterface):
         self.collector.record(self.provider_name, self.model, duration, tokens, prompt, response_text, gpu)
         return response_text
 
-    def decide_tool(self, prompt, tools_schema, system_instruction=None):
+    def decide_tool(self, messages, tools_schema, system_instruction=None):
         start_time = time.perf_counter()
-        response = self.real_adapter.decide_tool(prompt, tools_schema, system_instruction)
+        
+        # Repassamos exatamente os argumentos que o adapter real espera
+        response = self.real_adapter.decide_tool(
+            messages=messages, 
+            tools_schema=tools_schema, 
+            system_instruction=system_instruction
+        )
+        
         duration = time.perf_counter() - start_time
         
-        # Ajuste: transformamos o objeto de ferramenta em string para o contador
+        # Transformamos em string para o cálculo de tokens e log
         res_str = str(response)
-        tokens = self._get_tokens(prompt, res_str)
+        
+        # Note que agora usamos 'messages' em vez de 'prompt'
+        tokens = self._get_tokens(str(messages), res_str)
         gpu = self._get_gpu_status()
 
-        self.collector.record(self.provider_name, self.model, duration, tokens, prompt, res_str, gpu)
-        return response
+        self.collector.record(
+            self.provider_name, 
+            self.model, 
+            duration, 
+            tokens, 
+            str(messages), 
+            res_str, 
+            gpu
+        )
+        return response 
 
     def _get_gpu_status(self) -> str:
         """Mantemos sua lógica excelente de PS, apenas com um fallback mais limpo."""
