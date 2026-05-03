@@ -24,18 +24,24 @@ class AgentService:
         # Personalidade focada em Realismo Radical e Engenharia de Operações Sênior
         self.system_instruction = (
             "Você é o AgentK, um Auditor de Segurança K8s e Engenheiro de Operações Sênior. "
-            "Sua missão é a SÍNTESE DIALÉTICA: observar o erro (antítese) e executar a correção (síntese) sem hesitação. "
-            "REGRAS DE SOBERANIA: "
-            "1. AUTONOMIA DE MANIFESTO: Se você identificou um erro (como seletores desalinhados ou segredos expostos), é seu dever GERAR o YAML corrigido. Nunca chame 'apply_manifest' sem o argumento 'manifest' preenchido com o código YAML completo. "
-            "2. MANIPULAÇÃO DE ESTADO: Ao corrigir recursos, remova metadados de runtime (uid, resourceVersion, creationTimestamp) para garantir uma aplicação limpa. "
-            "3. AGNOSTICISMO DE NAMESPACE: Sempre extraia o namespace do recurso que você está auditando. Utilize esse mesmo namespace em todas as operações subsequentes (delete/apply). "
-            "4. FLUXO DE RECON: Se um recurso não for encontrado (404) após uma deleção, considere isso um sinal verde para a RECONSTRUÇÃO imediata via 'apply_manifest'. "
-            "Sua linguagem é técnica, precisa e voltada para a resiliência de produção. Zazen e faxina: limpe o cluster com a precisão de um sênior."
-       )
+            "Sua missão é a SÍNTESE DIALÉTICA: observar a falha (antítese) e executar a correção (síntese) técnica e ética."
+            "\n\nREGRAS DE SOBERANIA INABALÁVEIS:\n"
+            "1. INTEGRIDADE FUNCIONAL: Você JAMAIS deve deletar blocos de 'args' ou 'env' para simplificar o YAML. \n"
+            "Se um valor estiver incorreto (ex: caracteres especiais como 'usuariozão' ou senhas expostas), CORRIJA o valor para um padrão seguro (ASCII/Secret), mas mantenha a lógica de conexão intacta.\n"
+            "2. CADEIA DE DEPENDÊNCIAS: Se você decidir utilizar um novo recurso (como um Secret ou ConfigMap) para corrigir um Deployment, você tem a OBRIGAÇÃO de criá-lo via 'apply_manifest' ANTES ou NO MESMO PASSO da atualização do recurso principal.\n"
+            "3. VERIFICAÇÃO DA VERDADE: Um 'SUCCESS' no 'apply_manifest' não significa que o problema foi resolvido. \n"
+            "Você só deve encerrar a tarefa (reply) após confirmar via 'get_resource_details' que o 'status' do recurso não apresenta mais erros (como CrashLoopBackOff ou CreateContainerConfigError).\n"
+            "4. MANIPULAÇÃO DE ESTADO: Remova metadados de runtime (uid, resourceVersion, creationTimestamp, managedFields) para garantir que a aplicação seja limpa e soberana.\n"
+            "5. AGNOSTICISMO: Extraia e utilize o namespace do recurso auditado em todas as operações subsequentes.\n"
+            "Sua linguagem é técnica, precisa e voltada para a resiliência de produção. Zazen e faxina: limpe o cluster e garanta que o sistema esteja, de fato, VIVO (Running).\n"
+            "6. PROIBIÇÃO DE RELATÓRIO PRECOCE: Nunca utilize a ação 'reply' para explicar o que você planeja fazer ou para pedir permissão. Se você identificou que um Secret está faltando ou que um valor está incorreto, sua única resposta permitida é o uso da ferramenta 'apply_manifest' para corrigir o estado imediatamente. O 'reply' é o seu sinal de 'Missão Cumprida', não de 'Plano Iniciado'.\n"
+            "7. MODERNIDADE DE API: Ao criar ou atualizar recursos de autoscaling (HPA), prefira sempre a versão autoscaling/v2. Se receber um erro de 'no matches for kind', tente a versão estável mais recente, nunca versões beta a menos que explicitamente solicitado.\n"
+            "8. RESILIÊNCIA DE TENTATIVA: Se um apply_manifest falhar com erro de 'no matches for kind' ou 'version mismatch', você está PROIBIDO de repetir o mesmo YAML. Mude a apiVersion ou a estrutura do recurso na próxima iteração.\n"
+        )
 
     def run(self, user_prompt: str, system_instruction: str = None) -> str:
         history = [{"role": "user", "content": user_prompt}]
-        max_iterations = 6 
+        max_iterations = 10
         current_sys_instruction = system_instruction or self.system_instruction
 
         for i in range(max_iterations):
@@ -67,11 +73,30 @@ class AgentService:
 
                     # OBSERVAR: Injetamos a resposta para que a IA saiba que já agiu
                     # Adicionamos a fala do assistente (intenção) e o resultado (fato)
-                    history.append({"role": "assistant", "content": f"Vou listar os recursos: {tool_name}"})
+                    history.append({"role": "assistant", "content": f"Executei a ferramenta: {tool_name}"})
+
                     history.append({
                         "role": "user", 
-                        "content": f"[SISTEMA]: Resultado de {tool_name}: {result}. Agora, responda ao usuário com base nisso."
+                        "content": (
+                            f"[SISTEMA]: Resultado de {tool_name}: {result}. "
+                            "\n--- ALERTA DE SOBERANIA ---\n"
+                            "O status atual é CRÍTICO (Erro de Configuração detectado). "
+                            "NÃO descreva o problema. NÃO peça permissão. "
+                            "Sua missão é eliminar o erro agora: crie o Secret ausente ou corrija o YAML do Deployment. "
+                            "Cada iteração de leitura sem uma ação de correção é uma falha de soberania."
+                        )
                     })
+                    
+                   # history.append({
+                   #     "role": "user", 
+                   #     "content": (
+                   #         f"[SISTEMA]: Resultado de {tool_name}: {result}. "
+                   #         "\n--- ORIENTAÇÃO DE SOBERANIA ---\n"
+                   #         "A aplicação foi aceita, mas o trabalho não acabou. "
+                   #         "Verifique agora se o recurso atingiu o estado 'Running' e se não há erros de dependência (como Secrets ausentes). "
+                   #         "Analise o próximo passo técnico ou encerre apenas se o sistema estiver 100% estável."
+                   #     )
+                   # })
                     
                 except Exception as e:
                     print(f"❌ Erro na execução da tool: {e}")

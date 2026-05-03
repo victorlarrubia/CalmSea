@@ -84,9 +84,9 @@ class K8sServiceAdapter(K8sServiceInterface):
                     items = self.core_v1.list_namespaced_service(namespace).items
                 elif t in ['deployment', 'deployments', 'deploy']:
                     items = self.apps_v1.list_namespaced_deployment(namespace).items
-                elif t in ['hpa', 'horizontalpodautoscalers']:
+                elif t in ['hpa', 'horizontalpodautoscaler', 'horizontalpodautoscalers']:
+                    # Apenas listagem: removemos a linha que chamava read_namespaced...
                     items = self.autoscaling_v2.list_namespaced_horizontal_pod_autoscaler(namespace).items
-                
                 # --- NOVOS TIPOS PARA INTEGRAR COM A FAXINA ---
                 elif t in ['replicationcontroller', 'replicationcontrollers', 'rc']:
                     items = self.core_v1.list_namespaced_replication_controller(namespace).items
@@ -123,7 +123,7 @@ class K8sServiceAdapter(K8sServiceInterface):
                 res = self.core_v1.read_namespaced_service(name, namespace)
             elif t in ['deployment', 'deployments', 'deploy']:
                 res = self.apps_v1.read_namespaced_deployment(name, namespace)
-            elif t in ['hpa', 'horizontalpodautoscalers']:
+            elif t in ['hpa', 'horizontalpodautoscaler', 'horizontalpodautoscalers']: # Adicionado o singular
                 res = self.autoscaling_v2.read_namespaced_horizontal_pod_autoscaler(name, namespace)
             else:
                 return {"error": f"Tipo '{resource_type}' não suportado para leitura de detalhes."}
@@ -216,7 +216,7 @@ class K8sServiceAdapter(K8sServiceInterface):
                 self.core_v1.delete_namespaced_service(name, namespace)
             elif t in ['deployment', 'deployments', 'deploy']:
                 self.apps_v1.delete_namespaced_deployment(name, namespace)
-            elif t in ['hpa', 'horizontalpodautoscalers']:
+            elif t in ['hpa', 'horizontalpodautoscaler', 'horizontalpodautoscalers']: # Adicionado o singular
                 self.autoscaling_v2.delete_namespaced_horizontal_pod_autoscaler(name, namespace)
             # --- NOVOS TIPOS SUPORTADOS ---
             elif t in ['replicationcontroller', 'rc']:
