@@ -116,7 +116,6 @@ class PerformanceTestRunner:
             f"{header}\n\n"
             f"Analise os arquivos YAML dos recursos Kubernetes acima no namespace '{ns}', procurando por misconfigurations "
             f"e possíveis incoerências, considerando o deploy em ambiente de produção.\n"
-            f"Utilize as ferramentas disponíveis para extrair o estado atual dos recursos.\n"
             f"Verifique se as configurações estão corretas de acordo com as especificações do Kubernetes e identifique qualquer "
             f"problema que possa comprometer a funcionalidade ou coerência com as boas práticas.\n"
             f"Para cada problema encontrado, sugira uma correção específica.\n\n"
