@@ -4,131 +4,62 @@ import sys
 import ollama
 from openai import OpenAI
 
-# Garante que o Python encontre os módulos da raiz
+# Caminhos do projeto
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-# Imports do Backend (Clean Arch)
 from src.infrastructure.llm.openai_adapter import OpenAIAdapter
 from src.infrastructure.llm.ollama_adapter import OllamaAdapter
 from src.infrastructure.k8s_adapter.service import K8sServiceAdapter
 from src.application.services.agent_service import AgentService
 
-# Imports do Frontend (Atomic Design)
-from src.presentation.streamlit.components.atoms import atom_title
-from src.presentation.streamlit.components.organisms import organism_chat_window, organism_sidebar_status
+st.set_page_config(page_title="AgentK Dashboard", page_icon="☸️", layout="wide")
 
-# --- Configuração da Página ---
-st.set_page_config(page_title="AgentK", page_icon="☸️", layout="wide")
-
-# --- FUNÇÕES AUXILIARES ---
-
-def get_local_models():
-    """Busca modelos do Ollama."""
-    try:
-        models_info = ollama.list()
-        # O retorno do ollama.list() varia entre versões, as vezes é objeto, as vezes dict
-        # Tenta pegar 'model' ou 'name'
-        return [m.get('model', m.get('name')) for m in models_info['models']]
-    except Exception:
-        return ["llama3.1:latest", "mistral:latest"] # Fallback
-
-@st.cache_data(ttl=3600)
-def get_openai_models(api_key: str):
-    """Busca e filtra modelos de Chat da OpenAI."""
+def get_openai_models(api_key):
     try:
         client = OpenAI(api_key=api_key)
         models = client.models.list()
-        
-        # Filtra apenas modelos de CHAT
-        chat_models = [
-            m.id for m in models.data 
-            if (m.id.startswith("gpt") or m.id.startswith("o1"))
-            and "audio" not in m.id 
-            and "realtime" not in m.id
-        ]
-        return sorted(chat_models, reverse=True)
-    except Exception as e:
-        st.error(f"Erro OpenAI: {e}")
-        return ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"] # Fallback
+        # Filtra por gpt, o1 e a nova série o4 para o benchmark
+        return sorted([m.id for m in models.data if any(x in m.id for x in ["gpt", "o1", "o4"])], reverse=True)
+    except:
+        return ["o4-mini", "o1-mini", "gpt-4o-mini"]
 
-def get_agent_core(provider_type: str, model_name: str, api_key: str = None):
-    """Fábrica que cria o Agente."""
+def get_ollama_models():
     try:
-        if provider_type == "OpenAI":
-            if not api_key: return None, "Falta API Key"
-            llm = OpenAIAdapter(api_key=api_key, model=model_name)
-        
-        elif provider_type == "Ollama (Local)":
-            llm = OllamaAdapter(model=model_name)
-            
-        k8s = K8sServiceAdapter()
-        return AgentService(llm, k8s), None
+        return [m['name'] for m in ollama.list()['models']]
+    except:
+        return ["llama3.1:latest"]
 
-    except Exception as e:
-        return None, str(e)
-
-# --- SIDEBAR: CONFIGURAÇÃO ---
 with st.sidebar:
-    st.header("⚙️ Configuração IA")
+    st.title("⚙️ Configuração")
     provider = st.selectbox("Provedor", ["OpenAI", "Ollama (Local)"])
     
-    # Variável que vai guardar o modelo escolhido
-    selected_model = None
-    openai_key = None
-
     if provider == "OpenAI":
-        openai_key = st.text_input("API Key", value=os.getenv("OPENAI_API_KEY", ""), type="password")
-        
-        if openai_key:
-            available_models = get_openai_models(openai_key)
-            index = 0
-            if "gpt-4o-mini" in available_models:
-                index = available_models.index("gpt-4o-mini")
-            selected_model = st.selectbox("Modelo OpenAI", available_models, index=index)
-        else:
-            st.warning("Insira a Key para carregar modelos.")
-            selected_model = "gpt-4o-mini"
-
+        key = st.text_input("API Key", type="password", value=os.getenv("OPENAI_API_KEY", ""))
+        model = st.selectbox("Modelo", get_openai_models(key))
+        adapter = OpenAIAdapter(api_key=key, model=model)
     else:
-        # Ollama
-        try:
-            available_models = get_local_models()
-            selected_model = st.selectbox("Modelo Local", available_models)
-        except:
-            st.error("Ollama offline?")
-            selected_model = "llama3.1"
+        model = st.selectbox("Modelo Local", get_ollama_models())
+        adapter = OllamaAdapter(model=model)
 
-    st.caption(f"Usando: `{selected_model}`")
+# Fábrica do Agente
+k8s = K8sServiceAdapter()
+agent = AgentService(adapter, k8s)
 
-# --- INICIALIZAÇÃO DO AGENTE ---
-agent, error = get_agent_core(provider, selected_model, openai_key)
-
-# --- HEADER & STATUS ---
-atom_title("AgentK Dashboard")
-
-# Correção aqui: usando 'selected_model'
-organism_sidebar_status(is_connected=(agent is not None), model_name=f"{provider} / {selected_model}")
-
-if error:
-    st.error(f"Falha na inicialização: {error}")
-    st.stop()
-
-# --- CHAT LOOP ---
+st.title("AgentK++")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-organism_chat_window(st.session_state.messages)
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ex: Liste os pods do namespace default..."):
+if prompt := st.chat_input("Comando de SRE..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consultando Cluster..."):
-            try:
-                response = agent.run(prompt)
-                st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
-            except Exception as e:
-                st.error(f"Erro: {e}")
+        with st.spinner("Processando..."):
+            response = agent.run(prompt)
+            st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})

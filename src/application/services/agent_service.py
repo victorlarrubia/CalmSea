@@ -1,122 +1,100 @@
 from typing import List, Dict, Any
-
-# Interfaces
 from src.application.interfaces.llm_provider import LLMProviderInterface
 from src.application.interfaces.k8s_service_interface import K8sServiceInterface
-
-# Definições (O Menu de Ferramentas)
 from src.application.tools_definitions import TOOLS_SCHEMA
-
-# Commands (Ações de Infraestrutura)
-from src.application.use_cases.list_resources_command import ListResourcesCommand
-from src.application.use_cases.get_pod_logs_command import GetPodLogsCommand
-from src.application.use_cases.list_namespaces_command import ListNamespacesCommand
-from src.application.use_cases.get_resource_details_command import GetResourceDetailsCommand
-from src.application.use_cases.delete_resource_command import DeleteResourceCommand
-from src.application.use_cases.scale_resource_command import ScaleResourceCommand
-from src.application.use_cases.apply_manifest_command import ApplyManifestCommand
 
 class AgentService:
     def __init__(self, llm_provider: LLMProviderInterface, k8s_adapter: K8sServiceInterface):
         self.llm = llm_provider
         self.k8s_adapter = k8s_adapter
         
-        # Personalidade focada em Realismo Radical e Engenharia de Operações Sênior
+        # Postura de Realismo Radical: Foco na transmutação física e precisão técnica.
         self.system_instruction = (
-            "Você é o AgentK, um Auditor de Segurança K8s e Engenheiro de Operações Sênior. "
-            "Sua missão é a SÍNTESE DIALÉTICA: observar a falha (antítese) e executar a correção (síntese) técnica e ética."
-            "\n\nREGRAS DE SOBERANIA INABALÁVEIS:\n"
-            "1. INTEGRIDADE FUNCIONAL: Você JAMAIS deve deletar blocos de 'args' ou 'env' para simplificar o YAML. \n"
-            "Se um valor estiver incorreto (ex: caracteres especiais como 'usuariozão' ou senhas expostas), CORRIJA o valor para um padrão seguro (ASCII/Secret), mas mantenha a lógica de conexão intacta.\n"
-            "2. CADEIA DE DEPENDÊNCIAS: Se você decidir utilizar um novo recurso (como um Secret ou ConfigMap) para corrigir um Deployment, você tem a OBRIGAÇÃO de criá-lo via 'apply_manifest' ANTES ou NO MESMO PASSO da atualização do recurso principal.\n"
-            "3. VERIFICAÇÃO DA VERDADE: Um 'SUCCESS' no 'apply_manifest' não significa que o problema foi resolvido. \n"
-            "Você só deve encerrar a tarefa (reply) após confirmar via 'get_resource_details' que o 'status' do recurso não apresenta mais erros (como CrashLoopBackOff ou CreateContainerConfigError).\n"
-            "4. MANIPULAÇÃO DE ESTADO: Remova metadados de runtime (uid, resourceVersion, creationTimestamp, managedFields) para garantir que a aplicação seja limpa e soberana.\n"
-            "5. AGNOSTICISMO: Extraia e utilize o namespace do recurso auditado em todas as operações subsequentes.\n"
-            "Sua linguagem é técnica, precisa e voltada para a resiliência de produção. Zazen e faxina: limpe o cluster e garanta que o sistema esteja, de fato, VIVO (Running).\n"
-            "6. PROIBIÇÃO DE RELATÓRIO PRECOCE: Nunca utilize a ação 'reply' para explicar o que você planeja fazer ou para pedir permissão. Se você identificou que um Secret está faltando ou que um valor está incorreto, sua única resposta permitida é o uso da ferramenta 'apply_manifest' para corrigir o estado imediatamente. O 'reply' é o seu sinal de 'Missão Cumprida', não de 'Plano Iniciado'.\n"
-            "7. MODERNIDADE DE API: Ao criar ou atualizar recursos de autoscaling (HPA), prefira sempre a versão autoscaling/v2. Se receber um erro de 'no matches for kind', tente a versão estável mais recente, nunca versões beta a menos que explicitamente solicitado.\n"
-            "8. RESILIÊNCIA DE TENTATIVA: Se um apply_manifest falhar com erro de 'no matches for kind' ou 'version mismatch', você está PROIBIDO de repetir o mesmo YAML. Mude a apiVersion ou a estrutura do recurso na próxima iteração.\n"
+            r"""Você é o AgentK, um SRE Sênior focado em remediação autônoma.
+
+REGRAS DE SOBERANIA:
+1. ORDEM DE ATAQUE: 1º Secret -> 2º Deployment -> 3º Service Selector.
+2. SUCESSO OU MORTE: Se uma ferramenta retornar 'ERROR', sua única missão é corrigir esse erro.
+3. SANITIZAÇÃO: Converta 'usuariozão' para 'usuario'. Garanta args como strings.
+4. LIMPEZA: Remova metadados (uid, resourceVersion, managedFields, creationTimestamp, status) antes do 'apply_manifest'.
+5. REJEIÇÃO DO 'UNCHANGED': Se o resultado for 'unchanged', você falhou. Altere o valor no YAML de fato.
+6. VETO DE REDUNDÂNCIA: Proibido ler logs/detalhes repetidamente sem aplicar mudança física.
+7. VERIFICAÇÃO FINAL: Só encerre com 'reply' após confirmar Pods em 'Running'.
+8. CONSISTÊNCIA DE CHAVES: As chaves no 'data' do Secret (ex: DB_PASSWORD) devem ser IDÊNTICAS às usadas no 'secretKeyRef' do Deployment. Case-sensitivity é absoluta.
+9. CONSCIÊNCIA DE ROLLOUT: Após um 'apply_manifest', ignore Pods em estado 'Terminating'. Foque exclusivamente nos Pods novos gerados pelo ReplicaSet mais recente.
+10. VETO DE REPETIÇÃO EM SECRETS: Se 'get_resource_details' retornar erro de tipo não suportado para Secrets, NÃO TENTE LER NOVAMENTE. Assuma que você deve criar um novo Secret com os valores necessários."""
         )
 
-    def run(self, user_prompt: str, system_instruction: str = None) -> str:
+    def run(self, user_prompt: str) -> str:
         history = [{"role": "user", "content": user_prompt}]
-        max_iterations = 10
-        current_sys_instruction = system_instruction or self.system_instruction
+        max_iterations = 15  # Aumentado para suportar o tempo de Rollout do K8s
 
         for i in range(max_iterations):
-            # IMPORTANTE: Verifique se o seu Adapter realmente aceita 'messages'
+            tentativas_restantes = max_iterations - i
+            aviso_urgencia = (
+                f"\n[SISTEMA]: Tentativa {i+1}/12. {tentativas_restantes} restantes."
+                "\nALVOS: 1) Secrets (Case-sensitive!), 2) 'usuariozão' -> 'usuario', 3) Selector 'orionlds' -> 'orionld'."
+                "\nAVISO: Não perca tempo tentando ler conteúdo de Secrets."
+            )
+            
             decision = self.llm.decide_tool(
                 messages=history,
                 tools_schema=TOOLS_SCHEMA,
-                system_instruction=current_sys_instruction
+                system_instruction=self.system_instruction + aviso_urgencia
             )
 
             print(f"\n--- ITERAÇÃO {i} ---")
             print(f"Decisão da IA: {decision}")
 
-            action = decision.get("action")
-
-            if action == "reply":
+            if decision.get("action") == "reply":
                 return decision.get("content")
-
-            elif action == "tool_use":
-                tool_name = decision.get("tool_name")
-                args = decision.get("tool_args", {})
-
-                try:
-                    # AGIR
-                    result = self._execute_tool(tool_name, args)
-                    
-                    # A LINHA DA VERDADE
-                    print(f"[DEBUG SOBERANIA] Resultado da {tool_name}: {result}")
-
-                    # OBSERVAR: Injetamos a resposta para que a IA saiba que já agiu
-                    # Adicionamos a fala do assistente (intenção) e o resultado (fato)
-                    history.append({"role": "assistant", "content": f"Executei a ferramenta: {tool_name}"})
-
-                    history.append({
-                        "role": "user", 
-                        "content": (
-                            f"[SISTEMA]: Resultado de {tool_name}: {result}. "
-                            "\n--- ALERTA DE SOBERANIA ---\n"
-                            "O status atual é CRÍTICO (Erro de Configuração detectado). "
-                            "NÃO descreva o problema. NÃO peça permissão. "
-                            "Sua missão é eliminar o erro agora: crie o Secret ausente ou corrija o YAML do Deployment. "
-                            "Cada iteração de leitura sem uma ação de correção é uma falha de soberania."
-                        )
-                    })
-                    
-                   # history.append({
-                   #     "role": "user", 
-                   #     "content": (
-                   #         f"[SISTEMA]: Resultado de {tool_name}: {result}. "
-                   #         "\n--- ORIENTAÇÃO DE SOBERANIA ---\n"
-                   #         "A aplicação foi aceita, mas o trabalho não acabou. "
-                   #         "Verifique agora se o recurso atingiu o estado 'Running' e se não há erros de dependência (como Secrets ausentes). "
-                   #         "Analise o próximo passo técnico ou encerre apenas se o sistema estiver 100% estável."
-                   #     )
-                   # })
-                    
-                except Exception as e:
-                    print(f"❌ Erro na execução da tool: {e}")
-                    history.append({"role": "user", "content": f"[ERRO]: {str(e)}"})
             
-            else:
-                return f"⚠️ Falha de Contexto: {decision.get('content')}"
+            if decision.get("action") == "error":
+                return f"❌ Erro de Contexto: {decision.get('content')}"
 
-        return "⚠️ Limite de soberania atingido: O Agente entrou em loop infinito."
+            tool_name = decision.get("tool_name")
+            args = decision.get("tool_args", {})
 
-    def _flatten_history(self, history: List[Dict[str, str]]) -> str:
-        """
-        Achata o histórico em uma string estruturada para respeitar a assinatura da interface.
-        """
-        return "\n".join([f"[{msg['role'].upper()}]: {msg['content']}" for msg in history])
+            try:
+                # EXECUÇÃO ÚNICA (Atômica)
+                result = self._execute_tool(tool_name, args)
+                print(f"[DEBUG] Resultado da {tool_name}: {result}")
+                
+                # Feedback de Soberania Calibrado
+                if "ERROR" in str(result) or "Erro" in str(result):
+                    msg = f"BLOQUEIO: O comando falhou. Corrija o Namespace ou a chave imediatamente: {result}"
+                elif "unchanged" in str(result).lower() and tool_name == "apply_manifest":
+                    msg = "ESTAGNAÇÃO: O manifesto não alterou o cluster. Verifique se os seletores estão corretos!"
+                elif tool_name == "list_resources" and "pods" in str(args.get("resource_types", "")):
+                    msg = ("O Rollout está em curso. Se vir mais pods do que o esperado ou status 'Terminating', "
+                           "aguarde ou liste novamente para confirmar a estabilidade dos Pods NOVOS.")
+                elif tool_name == "apply_manifest" and "Secret" in str(args.get("manifest", "")):
+                    msg = "PROGRESSO: Secret aplicado. Prossiga com o Deployment garantindo chaves idênticas."
+                elif tool_name in ["get_resource_details", "get_pod_logs"] and i > 1:
+                    msg = "ALERTA: Pare de observar. Se o recurso está quebrado, use apply_manifest para transmutar o estado."
+                else:
+                    msg = "Ação aceita. Prossiga para a confirmação do estado 'Running' nos Pods ativos."
+
+                history.append({"role": "assistant", "content": f"Executei: {tool_name}"})
+                history.append({"role": "user", "content": f"[SISTEMA]: Resultado: {result}. \n{msg}"})
+                                                                                                                        
+            except Exception as e:
+                history.append({"role": "user", "content": f"[ERRO TÉCNICO]: {str(e)}"})
+        
+        return "⚠️ Limite de soberania atingido: O Agente falhou em estabilizar o cluster dentro do prazo de 12 iterações."
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]):
         """
         Mapeamento mecânico entre a decisão da IA e a execução no adaptador K8s.
         """
+        # Imports locais para garantir que os comandos estejam disponíveis no escopo do método
+        from src.application.use_cases.list_resources_command import ListResourcesCommand
+        from src.application.use_cases.get_pod_logs_command import GetPodLogsCommand
+        from src.application.use_cases.list_namespaces_command import ListNamespacesCommand
+        from src.application.use_cases.get_resource_details_command import GetResourceDetailsCommand
+        from src.application.use_cases.delete_resource_command import DeleteResourceCommand
+        from src.application.use_cases.scale_resource_command import ScaleResourceCommand
+        from src.application.use_cases.apply_manifest_command import ApplyManifestCommand
 
         # --- ETAPA DE RECON (LEITURA) ---
         if tool_name == "list_resources":
@@ -126,7 +104,6 @@ class AgentService:
             if isinstance(r_types, str): 
                 r_types = [r_types]
                 
-            # Chama o comando passando a lista estruturada
             return ListResourcesCommand(self.k8s_adapter).execute(
                 resource_types=r_types, 
                 namespace=args.get("namespace", "default")
@@ -134,17 +111,25 @@ class AgentService:
 
         elif tool_name == "get_resource_details":
             return GetResourceDetailsCommand(self.k8s_adapter).execute(
-                args["resource_type"], args["name"], args["namespace"]
+                args["resource_type"], 
+                args["name"], 
+                args.get("namespace", "default")
             )
 
         elif tool_name == "list_namespaces":
             return ListNamespacesCommand(self.k8s_adapter).execute()
 
+        elif tool_name == "get_pod_logs":
+            return GetPodLogsCommand(self.k8s_adapter).execute(
+                args["pod_name"], 
+                args.get("namespace", "default"), 
+                args.get("tail_lines", 50)
+            )
+
         # --- ETAPA DE COMMIT/FIX (AÇÃO) ---
         elif tool_name == "apply_manifest":
             manifest = args.get("manifest")
-            # Extraímos o namespace sem um default 'hardcoded' do projeto
-            # Se a IA não passar, o comando falha e ela aprende que precisa passar
+            # Se a IA não passar o namespace, o comando falha para forçar o aprendizado (Regra 10)
             target_namespace = args.get("namespace") or "default"
             
             if not manifest:
@@ -156,17 +141,17 @@ class AgentService:
 
         elif tool_name == "delete_resource":
             return DeleteResourceCommand(self.k8s_adapter).execute(
-                args["resource_type"], args["name"], args["namespace"]
+                args["resource_type"], 
+                args["name"], 
+                args.get("namespace", "default")
             )
 
         elif tool_name == "scale_resource":
             return ScaleResourceCommand(self.k8s_adapter).execute(
-                args["resource_type"], args["name"], int(args["replicas"]), args["namespace"]
-            )
-
-        elif tool_name == "get_pod_logs":
-            return GetPodLogsCommand(self.k8s_adapter).execute(
-                args["pod_name"], args["namespace"], args.get("tail_lines", 50)
+                args["resource_type"], 
+                args["name"], 
+                int(args["replicas"]), 
+                args.get("namespace", "default")
             )
 
         return f"Erro: Ferramenta '{tool_name}' não mapeada no executor do AgentService."

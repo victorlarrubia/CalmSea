@@ -17,10 +17,14 @@ class OpenAIAdapter(LLMProviderInterface):
     def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         messages = []
         if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
+            # Modelos 'o' preferem instruções no contexto de usuário
+            role = "user" if self.model.startswith("o") else "system"
+            messages.append({"role": role, "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
 
         kwargs = {"model": self.model, "messages": messages}
+        
+        # Séries o1 e o4 não aceitam temperature
         if not self.model.startswith("o"):
             kwargs["temperature"] = 0.7
 
@@ -32,21 +36,28 @@ class OpenAIAdapter(LLMProviderInterface):
             return f"Erro OpenAI: {str(e)}"
 
     def decide_tool(self, messages: List[Dict[str, str]], tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
-        # Constrói o payload de mensagens corretamente
         api_messages = []
+        is_reasoning_model = self.model.startswith("o")
+
         if system_instruction:
-            api_messages.append({"role": "system", "content": system_instruction})
+            role = "user" if is_reasoning_model else "system"
+            api_messages.append({"role": role, "content": f"DIRETRIZES DE SRE:\n{system_instruction}"})
         
-        # Adiciona o histórico que já vem formatado
         api_messages.extend(messages)
 
         kwargs = {
             "model": self.model,
             "messages": api_messages,
             "tools": tools_schema,
-            "tool_choice": "auto",
-            "temperature": 0.0 # Determinismo total
+            "tool_choice": "auto"
         }
+
+        # Filtro de parâmetros proibidos para modelos de raciocínio (o1/o4)
+        if not is_reasoning_model:
+            kwargs["temperature"] = 0.0 
+        else:
+            # Garante budget de tokens para o Chain of Thought
+            kwargs["max_completion_tokens"] = 10000
 
         try:
             response = self.client.chat.completions.create(**kwargs)
@@ -62,4 +73,4 @@ class OpenAIAdapter(LLMProviderInterface):
                 }
             return {"action": "reply", "content": message.content}
         except Exception as e:
-            return {"action": "error", "content": str(e)}
+            return {"action": "error", "content": f"Falha na API ({self.model}): {str(e)}"}
