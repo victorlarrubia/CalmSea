@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+import hashlib
 from src.application.interfaces.llm_provider import LLMProviderInterface
 from src.application.interfaces.k8s_service_interface import K8sServiceInterface
 from src.application.tools_definitions import TOOLS_SCHEMA
@@ -7,40 +8,53 @@ class AgentService:
     def __init__(self, llm_provider: LLMProviderInterface, k8s_adapter: K8sServiceInterface):
         self.llm = llm_provider
         self.k8s_adapter = k8s_adapter
+        # Rastreadores de estado para evitar loops
+        self._last_obs_hash = None
+        self._last_manifest_hash = None
         
-        # Postura de Realismo Radical: Foco na transmutação física e precisão técnica.
         self.system_instruction = (
-            r"""Você é o AgentK, um SRE Sênior focado em remediação autônoma.
+            "Você é AgentK, especialista em configurações YAML do Kubernetes e aplicação de boas práticas. "
+            "Seu papel é guiar na criação, análise e otimização de recursos YAML seguindo padrões de produção. "
+            
+            "Capacidades:\n"
+            "- Extrair e analisar YAMLs existentes do cluster\n"
+            "- Sugerir melhorias e correções baseadas em boas práticas\n"
+            "- Validar configurações antes da aplicação (client dry-run)\n"
+            "- Implementar recursos\n"
+            "- Gerenciar ciclo de vida completo (create/update/delete)\n"
+            
+            "Recursos suportados:\n"
+            "Namespaced: pods, services, deployments, configmaps, secrets, ingresses, pvcs, replicasets, statefulsets, cronjobs, jobs\n"
+            "Cluster-wide: nodes, persistent_volumes, namespaces\n"
+            
+            "Foco em boas práticas:\n"
+            "- Labels e annotations consistentes\n"
+            "- Resource limits e requests adequados\n"
+            "- Configurações de segurança apropriadas\n"
+            "- Estrutura YAML limpa e legível\n"
+            "- Imagens com versões específicas\n"
+            
+            "Sempre valide antes de aplicar e sugira melhorias quando identificar oportunidades. Se for responder com yaml, utilize a formatação apropriada."
+       )
 
-REGRAS DE SOBERANIA:
-1. ORDEM DE ATAQUE: 1º Secret -> 2º Deployment -> 3º Service Selector.
-2. SUCESSO OU MORTE: Se uma ferramenta retornar 'ERROR', sua única missão é corrigir esse erro.
-3. SANITIZAÇÃO: Converta 'usuariozão' para 'usuario'. Garanta args como strings.
-4. LIMPEZA: Remova metadados (uid, resourceVersion, managedFields, creationTimestamp, status) antes do 'apply_manifest'.
-5. REJEIÇÃO DO 'UNCHANGED': Se o resultado for 'unchanged', você falhou. Altere o valor no YAML de fato.
-6. VETO DE REDUNDÂNCIA: Proibido ler logs/detalhes repetidamente sem aplicar mudança física.
-7. VERIFICAÇÃO FINAL: Só encerre com 'reply' após confirmar Pods em 'Running'.
-8. CONSISTÊNCIA DE CHAVES: As chaves no 'data' do Secret (ex: DB_PASSWORD) devem ser IDÊNTICAS às usadas no 'secretKeyRef' do Deployment. Case-sensitivity é absoluta.
-9. CONSCIÊNCIA DE ROLLOUT: Após um 'apply_manifest', ignore Pods em estado 'Terminating'. Foque exclusivamente nos Pods novos gerados pelo ReplicaSet mais recente.
-10. VETO DE REPETIÇÃO EM SECRETS: Se 'get_resource_details' retornar erro de tipo não suportado para Secrets, NÃO TENTE LER NOVAMENTE. Assuma que você deve criar um novo Secret com os valores necessários."""
-        )
-
-    def run(self, user_prompt: str) -> str:
-        history = [{"role": "user", "content": user_prompt}]
-        max_iterations = 15  # Aumentado para suportar o tempo de Rollout do K8s
+    def run(self, user_prompt: str, system_instruction: str = None) -> str:
+        history = []
+        history.append({"role": "user", "content": user_prompt})
+        max_iterations = 20 # Aumentado para dar margem ao diagnóstico
+        
+        base_instruction = system_instruction or self.system_instruction
 
         for i in range(max_iterations):
             tentativas_restantes = max_iterations - i
             aviso_urgencia = (
-                f"\n[SISTEMA]: Tentativa {i+1}/12. {tentativas_restantes} restantes."
-                "\nALVOS: 1) Secrets (Case-sensitive!), 2) 'usuariozão' -> 'usuario', 3) Selector 'orionlds' -> 'orionld'."
-                "\nAVISO: Não perca tempo tentando ler conteúdo de Secrets."
+                f"\n[SISTEMA]: Tentativa {i+1}/{max_iterations}. {tentativas_restantes} restantes."
+                "\nALERTA: Se o estado não muda, PARE de aplicar o mesmo YAML e olhe os LOGS."
             )
             
             decision = self.llm.decide_tool(
                 messages=history,
                 tools_schema=TOOLS_SCHEMA,
-                system_instruction=self.system_instruction + aviso_urgencia
+                system_instruction=base_instruction + aviso_urgencia
             )
 
             print(f"\n--- ITERAÇÃO {i} ---")
@@ -56,32 +70,35 @@ REGRAS DE SOBERANIA:
             args = decision.get("tool_args", {})
 
             try:
-                # EXECUÇÃO ÚNICA (Atômica)
                 result = self._execute_tool(tool_name, args)
                 print(f"[DEBUG] Resultado da {tool_name}: {result}")
                 
-                # Feedback de Soberania Calibrado
-                if "ERROR" in str(result) or "Erro" in str(result):
-                    msg = f"BLOQUEIO: O comando falhou. Corrija o Namespace ou a chave imediatamente: {result}"
-                elif "unchanged" in str(result).lower() and tool_name == "apply_manifest":
-                    msg = "ESTAGNAÇÃO: O manifesto não alterou o cluster. Verifique se os seletores estão corretos!"
-                elif tool_name == "list_resources" and "pods" in str(args.get("resource_types", "")):
-                    msg = ("O Rollout está em curso. Se vir mais pods do que o esperado ou status 'Terminating', "
-                           "aguarde ou liste novamente para confirmar a estabilidade dos Pods NOVOS.")
-                elif tool_name == "apply_manifest" and "Secret" in str(args.get("manifest", "")):
-                    msg = "PROGRESSO: Secret aplicado. Prossiga com o Deployment garantindo chaves idênticas."
-                elif tool_name in ["get_resource_details", "get_pod_logs"] and i > 1:
-                    msg = "ALERTA: Pare de observar. Se o recurso está quebrado, use apply_manifest para transmutar o estado."
-                else:
-                    msg = "Ação aceita. Prossiga para a confirmação do estado 'Running' nos Pods ativos."
+                # --- MECANISMO DE WATCHDOG (ANTIDOTO PARA LOOPS) ---
+                msg = "Ação aceita."
+                
+                if tool_name == "get_resource_details":
+                    obs_signature = hashlib.md5(str(result).encode()).hexdigest()
+                    if obs_signature == self._last_obs_hash:
+                        msg = "SISTEMA: Estagnação detectada. O estado não mudou. Use 'get_pod_logs' para diagnosticar!"
+                    self._last_obs_hash = obs_signature
 
+                elif tool_name == "apply_manifest":
+                    manifest_hash = hashlib.md5(str(args.get("manifest", "")).encode()).hexdigest()
+                    if manifest_hash == self._last_manifest_hash:
+                        msg = "SISTEMA: Você aplicou o MESMO manifesto. Isso é inútil se os pods não sobem. INVESTIGUE OS LOGS."
+                    self._last_manifest_hash = manifest_hash
+
+                # Feedback calibrado de erros
+                if "ERROR" in str(result) or "Erro" in str(result):
+                    msg = f"BLOQUEIO: O comando falhou: {result}"
+                
                 history.append({"role": "assistant", "content": f"Executei: {tool_name}"})
                 history.append({"role": "user", "content": f"[SISTEMA]: Resultado: {result}. \n{msg}"})
                                                                                                                         
             except Exception as e:
                 history.append({"role": "user", "content": f"[ERRO TÉCNICO]: {str(e)}"})
         
-        return "⚠️ Limite de soberania atingido: O Agente falhou em estabilizar o cluster dentro do prazo de 12 iterações."
+        return "⚠️ Limite de soberania atingido: O Agente falhou em estabilizar o cluster."
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]):
         """
