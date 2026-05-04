@@ -66,37 +66,53 @@ class AgentService:
             if decision.get("action") == "error":
                 return f"❌ Erro de Contexto: {decision.get('content')}"
 
-            tool_name = decision.get("tool_name")
-            args = decision.get("tool_args", {})
+            # --- NOVA LÓGICA: SUPORTE A CHAMADAS PARALELAS ---
+            tool_calls = []
+            if decision.get("action") == "parallel_tool_use":
+                tool_calls = decision.get("calls", [])
+            else:
+                # Fallback para modelos que retornam apenas uma ferramenta (ou se usar OpenAI)
+                tool_calls = [{
+                    "tool_name": decision.get("tool_name"),
+                    "tool_args": decision.get("tool_args", {})
+                }]
 
-            try:
-                result = self._execute_tool(tool_name, args)
-                print(f"[DEBUG] Resultado da {tool_name}: {result}")
-                
-                # --- MECANISMO DE WATCHDOG (ANTIDOTO PARA LOOPS) ---
-                msg = "Ação aceita."
-                
-                if tool_name == "get_resource_details":
-                    obs_signature = hashlib.md5(str(result).encode()).hexdigest()
-                    if obs_signature == self._last_obs_hash:
-                        msg = "SISTEMA: Estagnação detectada. O estado não mudou. Use 'get_pod_logs' para diagnosticar!"
-                    self._last_obs_hash = obs_signature
+            for call in tool_calls:
+                tool_name = call.get("tool_name")
+                args = call.get("tool_args", {})
 
-                elif tool_name == "apply_manifest":
-                    manifest_hash = hashlib.md5(str(args.get("manifest", "")).encode()).hexdigest()
-                    if manifest_hash == self._last_manifest_hash:
-                        msg = "SISTEMA: Você aplicou o MESMO manifesto. Isso é inútil se os pods não sobem. INVESTIGUE OS LOGS."
-                    self._last_manifest_hash = manifest_hash
+                try:
+                    result = self._execute_tool(tool_name, args)
+                    print(f"[DEBUG] Resultado da {tool_name}: {result}")
+                    
+                    # --- MECANISMO DE WATCHDOG (ANTIDOTO PARA LOOPS) ---
+                    msg = "Ação aceita."
+                    
+                    if tool_name == "get_resource_details":
+                        obs_signature = hashlib.md5(str(result).encode()).hexdigest()
+                        if obs_signature == self._last_obs_hash:
+                            msg = "SISTEMA: Estagnação detectada. O estado não mudou. Use 'get_pod_logs' para diagnosticar!"
+                        self._last_obs_hash = obs_signature
 
-                # Feedback calibrado de erros
-                if "ERROR" in str(result) or "Erro" in str(result):
-                    msg = f"BLOQUEIO: O comando falhou: {result}"
-                
-                history.append({"role": "assistant", "content": f"Executei: {tool_name}"})
-                history.append({"role": "user", "content": f"[SISTEMA]: Resultado: {result}. \n{msg}"})
-                                                                                                                        
-            except Exception as e:
-                history.append({"role": "user", "content": f"[ERRO TÉCNICO]: {str(e)}"})
+                    elif tool_name == "apply_manifest":
+                        manifest_hash = hashlib.md5(str(args.get("manifest", "")).encode()).hexdigest()
+                        if manifest_hash == self._last_manifest_hash:
+                            msg = "SISTEMA: Você aplicou o MESMO manifesto. Isso é inútil se os pods não sobem. INVESTIGUE OS LOGS."
+                        self._last_manifest_hash = manifest_hash
+
+                    # Feedback calibrado de erros
+                    if "ERROR" in str(result) or "Erro" in str(result):
+                        msg = f"BLOQUEIO: O comando falhou: {result}"
+                    
+                    # Inserção no histórico para cada ferramenta executada
+                    history.append({"role": "assistant", "content": f"Executei: {tool_name}"})
+                    history.append({"role": "user", "content": f"[SISTEMA]: Resultado de {tool_name}: {result}. \n{msg}"})
+                                                                                                                            
+                except Exception as e:
+                    history.append({"role": "user", "content": f"[ERRO TÉCNICO em {tool_name}]: {str(e)}"})
+            
+            # Após processar todas as chamadas da rodada, o loop principal 'for i in range' 
+            # fará a próxima chamada ao LLM com o histórico atualizado.
         
         return "⚠️ Limite de soberania atingido: O Agente falhou em estabilizar o cluster."
 
@@ -104,7 +120,6 @@ class AgentService:
         """
         Mapeamento mecânico entre a decisão da IA e a execução no adaptador K8s.
         """
-        # Imports locais para garantir que os comandos estejam disponíveis no escopo do método
         from src.application.use_cases.list_resources_command import ListResourcesCommand
         from src.application.use_cases.get_pod_logs_command import GetPodLogsCommand
         from src.application.use_cases.list_namespaces_command import ListNamespacesCommand
@@ -113,11 +128,8 @@ class AgentService:
         from src.application.use_cases.scale_resource_command import ScaleResourceCommand
         from src.application.use_cases.apply_manifest_command import ApplyManifestCommand
 
-        # --- ETAPA DE RECON (LEITURA) ---
         if tool_name == "list_resources":
             r_types = args.get("resource_types", ["pods"])
-            
-            # Garante que r_types seja sempre uma lista para o Command
             if isinstance(r_types, str): 
                 r_types = [r_types]
                 
@@ -143,10 +155,8 @@ class AgentService:
                 args.get("tail_lines", 50)
             )
 
-        # --- ETAPA DE COMMIT/FIX (AÇÃO) ---
         elif tool_name == "apply_manifest":
             manifest = args.get("manifest")
-            # Se a IA não passar o namespace, o comando falha para forçar o aprendizado (Regra 10)
             target_namespace = args.get("namespace") or "default"
             
             if not manifest:

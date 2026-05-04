@@ -20,7 +20,7 @@ logger = logging.getLogger("BenchmarkRunner")
 class PerformanceTestRunner:
     def __init__(self):
         # Definição dos modelos para o benchmark
-        self.models = ["o4-mini"] 
+        self.models = ["mistral-small3.2:24b-instruct-2506-q4_K_M", "qwen3.5:27b-q4_K_M", "qwen3-coder:30b-a3b-q4_K_M"] 
         
         self.yamls = [
             "1-orion.yaml", "2-frontend.yaml", "3-mysql.yaml", "4-vllm.yaml", 

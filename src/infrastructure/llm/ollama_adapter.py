@@ -1,6 +1,5 @@
 import ollama
 import json
-import re
 from typing import List, Dict, Any
 from src.application.interfaces.llm_provider import LLMProviderInterface
 
@@ -22,36 +21,50 @@ class OllamaAdapter(LLMProviderInterface):
         except Exception as e:
             return f"Erro Ollama: {str(e)}"
 
-    def decide_tool(self, prompt: str, tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
-        messages = []
+    def decide_tool(self, messages: List[Dict[str, Any]], tools_schema: List[Dict[str, Any]], system_instruction: str = None) -> Dict[str, Any]:
+        """
+        Segue rigorosamente a interface LLMProviderInterface.
+        """
+        api_messages = []
         if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
+            api_messages.append({"role": "system", "content": system_instruction})
+        
+        # Estende com o histórico vindo do AgentService (já formatado como roles)
+        api_messages.extend(messages)
 
         try:
-            # Importante: Ollama precisa de suporte a tools no binário (v0.3.0+)
             response = ollama.chat(
                 model=self.model,
-                messages=messages,
-                tools=tools_schema
+                messages=api_messages,
+                tools=tools_schema,
+                options={
+                    "temperature": 0,
+                    "num_ctx": 8192,
+                    "seed": 42
+                }
             )
             self.last_full_response = response 
-
             message = response['message']
+
             if 'tool_calls' in message and message['tool_calls']:
-                tool_call = message['tool_calls'][0]
-                args = tool_call['function']['arguments']
-                
-                # Se o Ollama devolver string em vez de dict, forçamos o parse
-                if isinstance(args, str):
-                    args = json.loads(args)
+                calls = []
+                for tool_call in message['tool_calls']:
+                    args = tool_call['function']['arguments']
+                    
+                    # Normalização do JSON (essencial para evitar quebras em modelos locais)
+                    if isinstance(args, str):
+                        args = json.loads(args)
+
+                    calls.append({
+                        "tool_name": tool_call['function']['name'],
+                        "tool_args": args
+                    })
 
                 return {
-                    "action": "tool_use",
-                    "tool_name": tool_call['function']['name'],
-                    "tool_args": args
+                    "action": "parallel_tool_use",
+                    "calls": calls
                 }
 
-            return {"action": "reply", "content": message['content']}
+            return {"action": "reply", "content": message.get('content', '')}
         except Exception as e:
             return {"action": "error", "content": str(e)}

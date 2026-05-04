@@ -160,11 +160,11 @@ docker compose build --no-cache performancetest
 
 ## AMD
 
-docker compose --profile amd up -d performancetest
+docker compose --profile amd up -d ollama-amd && docker compose --profile amd up -d performancetest
 
 ## NVIDIA
 
-docker compose --profile nvidia up -d performancetest
+docker compose --profile nvidia up -d ollama-nvidia && docker compose --profile nvidia up -d performancetest
 
 ## ver log de execução
 

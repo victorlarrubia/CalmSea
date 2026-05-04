@@ -24,7 +24,8 @@ class LLMMonitorDecorator(LLMProviderInterface):
     def decide_tool(self, messages, tools_schema, system_instruction=None):
         start_time = time.perf_counter()
         
-        # Repassamos exatamente os argumentos que o adapter real espera
+        # Ajuste: Garantimos que o adapter real receba os argumentos certos
+        # (Lembre-se de mudar 'prompt' para 'messages' no OllamaAdapter também!)
         response = self.real_adapter.decide_tool(
             messages=messages, 
             tools_schema=tools_schema, 
@@ -33,13 +34,14 @@ class LLMMonitorDecorator(LLMProviderInterface):
         
         duration = time.perf_counter() - start_time
         
-        # Transformamos em string para o cálculo de tokens e log
+        # O response agora pode ser um dict com 'parallel_tool_use'
         res_str = str(response)
         
-        # Note que agora usamos 'messages' em vez de 'prompt'
+        # Cálculo de tokens (oficial ou heurístico)
         tokens = self._get_tokens(str(messages), res_str)
         gpu = self._get_gpu_status()
 
+        # O Coletor agora guarda na lista de interações
         self.collector.record(
             self.provider_name, 
             self.model, 
@@ -49,7 +51,7 @@ class LLMMonitorDecorator(LLMProviderInterface):
             res_str, 
             gpu
         )
-        return response 
+        return response
 
     def _get_gpu_status(self) -> str:
         """Mantemos sua lógica excelente de PS, apenas com um fallback mais limpo."""

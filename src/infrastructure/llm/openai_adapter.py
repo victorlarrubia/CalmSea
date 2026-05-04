@@ -52,11 +52,9 @@ class OpenAIAdapter(LLMProviderInterface):
             "tool_choice": "auto"
         }
 
-        # Filtro de parâmetros proibidos para modelos de raciocínio (o1/o4)
         if not is_reasoning_model:
             kwargs["temperature"] = 0.0 
         else:
-            # Garante budget de tokens para o Chain of Thought
             kwargs["max_completion_tokens"] = 10000
 
         try:
@@ -64,13 +62,20 @@ class OpenAIAdapter(LLMProviderInterface):
             self.last_full_response = response 
             message = response.choices[0].message
             
+            # --- AJUSTE PARA PARALLEL TOOL CALLING ---
             if message.tool_calls:
-                selected_tool = message.tool_calls[0]
+                calls = []
+                for tool_call in message.tool_calls:
+                    calls.append({
+                        "tool_name": tool_call.function.name,
+                        "tool_args": json.loads(tool_call.function.arguments)
+                    })
+                
                 return {
-                    "action": "tool_use",
-                    "tool_name": selected_tool.function.name,
-                    "tool_args": json.loads(selected_tool.function.arguments)
+                    "action": "parallel_tool_use",
+                    "calls": calls
                 }
+                
             return {"action": "reply", "content": message.content}
         except Exception as e:
             return {"action": "error", "content": f"Falha na API ({self.model}): {str(e)}"}

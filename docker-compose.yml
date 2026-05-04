@@ -1,7 +1,6 @@
 services:
 
   # --- TESTES UNITÁRIOS ---
-  # Focados em lógica pura, sem depender de rede ou K8s real (usa mocks)
   tests-unit:
     build: .
     container_name: agentk-tests-unit
@@ -13,11 +12,10 @@ services:
     command: ["python3", "-m", "pytest", "tests/unit"]
 
   # --- TESTES DE INTEGRAÇÃO ---
-  # Testa o fluxo real: Agente -> MCP -> Kubernetes
   tests-integration:
     build: .
     container_name: agentk-tests-integration
-    network_mode: "host" # Essencial para falar com o Minikube local/remoto
+    network_mode: "host"
     depends_on:
       - servermcp
     environment:
@@ -29,16 +27,15 @@ services:
       - ./tests:/app/tests
       - ./remote-kubeconfig.yaml:/root/.kube/config
       - ./certs-remotos:/app/certs
-    # Roda especificamente o seu fluxo completo
     command: ["python3", "tests/integration/test_full_agent_flow.py"]
 
   # --- O SERVIDOR DE FERRAMENTAS (MCP) ---
   servermcp:
     build: 
       context: .
-      dockerfile: Dockerfile.mcp # Certifique-se de ter esse Dockerfile
+      dockerfile: Dockerfile.mcp
     container_name: servermcp
-    network_mode: "host" # Mantém a simplicidade para o túnel SSH
+    network_mode: "host"
     environment:
       - PYTHONPATH=/app
       - OLLAMA_BASE_URL=http://127.0.0.1:11434
@@ -53,30 +50,25 @@ services:
     build: .
     container_name: agentk-mcp
     network_mode: "host"
-    
     depends_on:
-      - servermcp # Garante que o servidor suba antes do agente
-
+      - servermcp
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PYTHONPATH=/app
       - KUBECONFIG=/root/.kube/config
-      # Variável para o requisito v1.3: Seleção de Hardware
       - LLM_HARDWARE_TARGET=gpu 
-    
     volumes:
       - ./src:/app/src
       - ./remote-kubeconfig.yaml:/root/.kube/config
       - ./certs-remotos:/app/certs
-      # Adicionamos a pasta de logs para o requisito de métricas
       - ./logs:/app/logs 
       - ./tests:/app/tests 
 
-# --- OPÇÃO NVIDIA (GCP / Outras máquinas) ---
+  # --- OPÇÕES DE HARDWARE OLLAMA ---
   ollama-nvidia:
     image: ollama/ollama:latest
     container_name: ollama-nvidia
-    profiles: ["nvidia"] # Só sobe se você chamar o perfil nvidia
+    profiles: ["nvidia"]
     network_mode: "host"
     environment:
       - OLLAMA_HOST=0.0.0.0 
@@ -90,11 +82,10 @@ services:
               count: 1
               capabilities: [gpu]
 
-  # --- OPÇÃO AMD ---
   ollama-amd:
     image: ollama/ollama:rocm
     container_name: ollama-amd
-    profiles: ["amd"] # Só sobe se você chamar o perfil amd
+    profiles: ["amd"]
     network_mode: "host"
     volumes:
       - ollama_data:/root/.ollama
@@ -106,7 +97,6 @@ services:
       - HSA_ENABLE_SDMA=0
       - OLLAMA_HOST=0.0.0.0
 
-  # --- OPÇÃO CPU (Fallback) ---
   ollama-cpu:
     image: ollama/ollama:latest
     container_name: ollama-cpu
@@ -116,20 +106,25 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
-  # --- DOWNLOADER (Adaptável) ---
+  # --- DOWNLOADER DE MODELOS (CALIBRE 2026) ---
   ollama-puller:
     image: ollama/ollama:latest
     container_name: ollama-puller
-    network_mode: "host"  # <--- Isso faz o container enxergar o localhost do seu Ubuntu
+    network_mode: "host"
     environment:
       - OLLAMA_HOST=127.0.0.1:11434
     entrypoint: ["/bin/sh", "-c"]
     command: 
       - |
-        echo "Aguardando servidor no host..."
-        sleep 10
-        ollama pull llama3.1:8b
-        ollama pull qwen:0.5b 
+        echo "⏳ Aguardando servidor Ollama no host..."
+        sleep 15
+        echo "📥 Baixando Mistral Small 3.2 (24B)..."
+        ollama pull mistral-small3.2:24b-instruct-2506-q4_K_M
+        echo "📥 Baixando Qwen 3.5 (27B)..."
+        ollama pull qwen3.5:27b-q4_K_M
+        echo "📥 Baixando Qwen 3 Coder (30B)..."
+        ollama pull qwen3-coder:30b-a3b-q4_K_M
+        echo "✅ Sniper municiado. Todos os modelos prontos!"
 
   # --- TESTE DE PERFORMANCE ---
   performancetest:
@@ -141,25 +136,18 @@ services:
         condition: service_started
       ollama-puller:
         condition: service_completed_successfully
-        
     environment:
       - PYTHONPATH=/app
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # 1. ADICIONE ESTA LINHA: Avisa as ferramentas do K8s onde está o arquivo
       - KUBECONFIG=/app/remote-kubeconfig.yaml 
-      
     volumes:
       - ./src:/app/src
       - ./docs/tests:/app/docs/tests
       - ./results:/app/results
-      # 2. ALTERE ESTA LINHA: Monta o arquivo na pasta /app, de forma simples e direta
       - ./remote-kubeconfig.yaml:/app/remote-kubeconfig.yaml
       - ./certs-remotos:/app/certs
     command: ["python3", "src/performance_test/main.py"]
     restart: on-failure
 
-# =========================================
-# DECLARAÇÃO GLOBAL DE VOLUMES
-# =========================================
 volumes:
   ollama_data:
