@@ -9,42 +9,39 @@ class TestOpenAIAdapter(unittest.TestCase):
     def test_decide_tool_should_parse_tool_call_correctly(self, mock_openai_lib):
         """
         Cenário: A IA decide chamar a ferramenta 'list_pods'.
-        Objetivo: Verificar se o Adapter extrai o nome e os argumentos corretamente.
+        Objetivo: Verificar se o Adapter extrai o nome e os argumentos corretamente dentro da lista 'calls'.
         """
-        # 1. ARRANGE (Preparar o Mock)
-        # Fingimos que instanciamos o client
+        # 1. ARRANGE
         mock_client = MagicMock()
         mock_openai_lib.return_value = mock_client
 
-        # Construímos uma resposta FAKE idêntica à da OpenAI
         mock_tool_call = MagicMock()
         mock_tool_call.function.name = "list_pods"
         mock_tool_call.function.arguments = '{"namespace": "production"}'
 
         mock_message = MagicMock()
-        mock_message.tool_calls = [mock_tool_call] # Lista de ferramentas chamadas
+        mock_message.tool_calls = [mock_tool_call] 
         mock_message.content = None
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=mock_message)]
-
-        # Dizemos ao mock: "Quando chamarem chat.completions.create, retorne isso aqui"
         mock_client.chat.completions.create.return_value = mock_response
 
-        # Instanciamos o Adapter com uma chave falsa (não importa, é mock)
         adapter = OpenAIAdapter(api_key="fake-key-123")
-        
-        # Schema fake para passar no argumento
         fake_schema = [{"type": "function", "function": {"name": "list_pods"}}]
 
-        # 2. ACT (Executar)
-        result = adapter.decide_tool("Listar pods de produção", fake_schema)
+        # 2. ACT
+        result = adapter.decide_tool([{"role": "user", "content": "Listar pods"}], fake_schema)
 
-        # 3. ASSERT (Verificar)
-        # O Adapter deve retornar um dicionário limpo, não o objeto complexo da OpenAI
-        self.assertEqual(result['action'], 'tool_use')
-        self.assertEqual(result['tool_name'], 'list_pods')
-        self.assertEqual(result['tool_args'], {'namespace': 'production'})
+        # 3. ASSERT
+        # O Adapter agora retorna 'parallel_tool_use' e uma lista de chamadas
+        self.assertEqual(result['action'], 'parallel_tool_use')
+        self.assertIn('calls', result)
+        self.assertEqual(len(result['calls']), 1)
+        
+        # Verificação da primeira chamada dentro da lista
+        self.assertEqual(result['calls'][0]['tool_name'], 'list_pods')
+        self.assertEqual(result['calls'][0]['tool_args'], {'namespace': 'production'})
 
     @patch('src.infrastructure.llm.openai_adapter.OpenAI')
     def test_decide_tool_should_handle_plain_text_reply(self, mock_openai_lib):
@@ -56,18 +53,17 @@ class TestOpenAIAdapter(unittest.TestCase):
         mock_openai_lib.return_value = mock_client
 
         mock_message = MagicMock()
-        mock_message.tool_calls = None # Nenhuma ferramenta chamada
+        mock_message.tool_calls = None 
         mock_message.content = "Olá! Como posso ajudar?"
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=mock_message)]
-
         mock_client.chat.completions.create.return_value = mock_response
 
         adapter = OpenAIAdapter(api_key="fake-key")
 
         # 2. ACT
-        result = adapter.decide_tool("Oi", [])
+        result = adapter.decide_tool([{"role": "user", "content": "Oi"}], [])
 
         # 3. ASSERT
         self.assertEqual(result['action'], 'reply')
@@ -82,15 +78,13 @@ class TestOpenAIAdapter(unittest.TestCase):
         mock_client = MagicMock()
         mock_openai_lib.return_value = mock_client
 
-        # Importamos o erro para simular ele
         from openai import OpenAIError
-        # Dizemos ao mock para LANÇAR uma exceção quando for chamado
         mock_client.chat.completions.create.side_effect = OpenAIError("Rate limit exceeded")
 
         adapter = OpenAIAdapter(api_key="fake-key")
 
         # 2. ACT
-        result = adapter.decide_tool("Listar pods", [])
+        result = adapter.decide_tool([{"role": "user", "content": "Listar pods"}], [])
 
         # 3. ASSERT
         self.assertEqual(result['action'], 'error')
