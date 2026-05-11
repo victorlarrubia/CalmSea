@@ -64,6 +64,7 @@ services:
       - ./certs-remotos:/app/certs
       - ./logs:/app/logs 
       - ./tests:/app/tests 
+      - ./results:/app/results
 
   # --- OPÇÕES DE HARDWARE OLLAMA ---
   ollama-nvidia:
