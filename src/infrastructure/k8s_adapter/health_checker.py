@@ -894,6 +894,22 @@ class K8sHealthChecker:
                     f"Mensagem: {message}"
                 )
 
+            if reason == "Unhealthy":
+                message_lower = message.lower()
+
+                if (
+                    ("readiness probe failed" in message_lower or "liveness probe failed" in message_lower)
+                    and (
+                        "executable file not found" in message_lower
+                        or "no such file or directory" in message_lower
+                        or "not found in $path" in message_lower
+                    )
+                ):
+                    return (
+                        f"Falha crítica no pod {involved_name}: Readiness/Liveness probe usa comando inexistente. "
+                        f"Mensagem: {message}"
+                    )
+
             if reason in {"ErrImagePull", "ImagePullBackOff", "Failed"}:
                 if "pull" in message.lower() or "image" in message.lower():
                     return (
