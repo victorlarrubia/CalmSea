@@ -6,7 +6,7 @@ services:
     container_name: agentk-tests-unit
     environment:
       - PYTHONPATH=/app
-      - OLLAMA_HOST=127.0.0.1:11434 # Garante o bind no host network
+      - OLLAMA_HOST=127.0.0.1:11434
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
@@ -17,8 +17,6 @@ services:
     build: .
     container_name: agentk-tests-integration
     network_mode: "host"
-    depends_on:
-      - servermcp
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PYTHONPATH=/app
@@ -32,7 +30,7 @@ services:
 
   # --- O SERVIDOR DE FERRAMENTAS (MCP) ---
   servermcp:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.mcp
     container_name: servermcp
@@ -40,11 +38,12 @@ services:
     environment:
       - PYTHONPATH=/app
       - OLLAMA_BASE_URL=http://127.0.0.1:11434
+      - KUBECONFIG=/root/.kube/config
     volumes:
       - ./src:/app/src
       - ./remote-kubeconfig.yaml:/root/.kube/config
       - ./certs-remotos:/app/certs
-    restart: always
+    restart: "no"
 
   # --- O AGENTE (INTERFACE E LÓGICA) ---
   agentk:
@@ -57,13 +56,14 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PYTHONPATH=/app
       - KUBECONFIG=/root/.kube/config
-      - LLM_HARDWARE_TARGET=gpu 
+      - LLM_HARDWARE_TARGET=gpu
+      - OLLAMA_HOST=127.0.0.1:11434
     volumes:
       - ./src:/app/src
       - ./remote-kubeconfig.yaml:/root/.kube/config
       - ./certs-remotos:/app/certs
-      - ./logs:/app/logs 
-      - ./tests:/app/tests 
+      - ./logs:/app/logs
+      - ./tests:/app/tests
       - ./results:/app/results
 
   # --- OPÇÕES DE HARDWARE OLLAMA ---
@@ -73,7 +73,7 @@ services:
     profiles: ["nvidia"]
     network_mode: "host"
     environment:
-      - OLLAMA_HOST=0.0.0.0 
+      - OLLAMA_HOST=0.0.0.0
     volumes:
       - ollama_data:/root/.ollama
     deploy:
@@ -108,25 +108,22 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
-  # --- DOWNLOADER DE MODELOS (CALIBRE 2026) ---
+  # --- DOWNLOADER DE MODELO LOCAL ---
   ollama-puller:
     image: ollama/ollama:latest
     container_name: ollama-puller
     network_mode: "host"
     environment:
       - OLLAMA_HOST=127.0.0.1:11434
+      - OLLAMA_MODEL=qwen2.5:3b
     entrypoint: ["/bin/sh", "-c"]
-    command: 
+    command:
       - |
-        echo "⏳ Aguardando servidor Ollama no host..."
+        echo "⏳ Aguardando servidor Ollama em 127.0.0.1:11434..."
         sleep 15
-        echo "📥 Baixando Mistral Small 3.2 (24B)..."
-        ollama pull mistral-small3.2:24b-instruct-2506-q4_K_M
-        echo "📥 Baixando Qwen 3.5 (27B)..."
-        ollama pull qwen3.5:27b-q4_K_M
-        echo "📥 Baixando Qwen 3 Coder (30B)..."
-        ollama pull qwen3-coder:30b-a3b-q4_K_M
-        echo "✅ Sniper municiado. Todos os modelos prontos!"
+        echo "📥 Baixando modelo $${OLLAMA_MODEL}..."
+        ollama pull $${OLLAMA_MODEL}
+        echo "✅ Modelo $${OLLAMA_MODEL} pronto para o benchmark."
 
   # --- TESTE DE PERFORMANCE ---
   performancetest:
@@ -134,15 +131,16 @@ services:
     container_name: performance-test
     network_mode: "host"
     depends_on:
-      servermcp:
-        condition: service_started
       ollama-puller:
         condition: service_completed_successfully
     environment:
       - PYTHONPATH=/app
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - KUBECONFIG=/app/remote-kubeconfig.yaml 
-      - OLLAMA_HOST=127.0.0.1:11434  # <--- Vital para o Collector/Decorator
+      - KUBECONFIG=/app/remote-kubeconfig.yaml
+      - OLLAMA_HOST=127.0.0.1:11434
+      - PERFORMANCE_TEST_MODELS=qwen2.5:3b
+      - PERFORMANCE_TEST_REPS=1
+      - PERFORMANCE_TEST_SLEEP_SECONDS=5
     volumes:
       - ./src:/app/src
       - ./docs/tests:/app/docs/tests

@@ -1,14 +1,26 @@
 # Dockerfile.mcp
-FROM python:3.11-slim
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Instala dependências básicas
+# Instala dependências básicas e kubectl.
+# O kubectl é necessário porque o K8sServiceAdapter usa:
+# kubectl apply --dry-run=server -f -
+# kubectl apply -f -
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && curl -fsSLo /usr/local/bin/kubectl \
+        "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod 0755 /usr/local/bin/kubectl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código fonte
 COPY . .
 
-# Comando para rodar o servidor (ajuste o caminho se o seu arquivo for diferente)
 CMD ["python3", "src/main.py"]

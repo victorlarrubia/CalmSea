@@ -1,5 +1,43 @@
-venv/
-__pycache__/
+# Git
 .git/
+.gitignore
+
+# Ambientes virtuais Python
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# VS Code e arquivos locais de IDE
+.vscode/
+.idea/
+
+# Arquivos de ambiente e segredos locais
+.env
+.env.*
+remote-kubeconfig.yaml
+certs-remotos/
+
+# Logs e resultados locais
+logs/
+results/
+
+# Arquivos temporários
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+
+# Testes não precisam entrar na imagem base.
+# No docker-compose, eles são montados por volume quando necessário.
 tests/

@@ -1,0 +1,157 @@
+ignored_namespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+
+resources:
+  pods:
+    kind: Pod
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_pod
+    list_all_method: list_pod_for_all_namespaces
+    read_namespaced_method: read_namespaced_pod
+    delete_namespaced_method: delete_namespaced_pod
+
+  services:
+    kind: Service
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_service
+    list_all_method: list_service_for_all_namespaces
+    read_namespaced_method: read_namespaced_service
+    delete_namespaced_method: delete_namespaced_service
+
+  deployments:
+    kind: Deployment
+    api: apps/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_deployment
+    list_all_method: list_deployment_for_all_namespaces
+    read_namespaced_method: read_namespaced_deployment
+    delete_namespaced_method: delete_namespaced_deployment
+    scale_namespaced_method: patch_namespaced_deployment_scale
+
+  configmaps:
+    kind: ConfigMap
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_config_map
+    list_all_method: list_config_map_for_all_namespaces
+    read_namespaced_method: read_namespaced_config_map
+    delete_namespaced_method: delete_namespaced_config_map
+
+  secrets:
+    kind: Secret
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_secret
+    list_all_method: list_secret_for_all_namespaces
+    read_namespaced_method: read_namespaced_secret
+    delete_namespaced_method: delete_namespaced_secret
+
+  ingresses:
+    kind: Ingress
+    api: networking.k8s.io/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_ingress
+    list_all_method: list_ingress_for_all_namespaces
+    read_namespaced_method: read_namespaced_ingress
+    delete_namespaced_method: delete_namespaced_ingress
+
+  persistent_volume_claims:
+    kind: PersistentVolumeClaim
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_persistent_volume_claim
+    list_all_method: list_persistent_volume_claim_for_all_namespaces
+    read_namespaced_method: read_namespaced_persistent_volume_claim
+    delete_namespaced_method: delete_namespaced_persistent_volume_claim
+
+  replicasets:
+    kind: ReplicaSet
+    api: apps/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_replica_set
+    list_all_method: list_replica_set_for_all_namespaces
+    read_namespaced_method: read_namespaced_replica_set
+    delete_namespaced_method: delete_namespaced_replica_set
+
+  statefulsets:
+    kind: StatefulSet
+    api: apps/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_stateful_set
+    list_all_method: list_stateful_set_for_all_namespaces
+    read_namespaced_method: read_namespaced_stateful_set
+    delete_namespaced_method: delete_namespaced_stateful_set
+    scale_namespaced_method: patch_namespaced_stateful_set_scale
+
+  daemon_sets:
+    kind: DaemonSet
+    api: apps/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_daemon_set
+    list_all_method: list_daemon_set_for_all_namespaces
+    read_namespaced_method: read_namespaced_daemon_set
+    delete_namespaced_method: delete_namespaced_daemon_set
+
+  replication_controllers:
+    kind: ReplicationController
+    api: v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_replication_controller
+    list_all_method: list_replication_controller_for_all_namespaces
+    read_namespaced_method: read_namespaced_replication_controller
+    delete_namespaced_method: delete_namespaced_replication_controller
+    scale_namespaced_method: patch_namespaced_replication_controller_scale
+
+  horizontal_pod_autoscalers:
+    kind: HorizontalPodAutoscaler
+    api: autoscaling/v2
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_horizontal_pod_autoscaler
+    list_all_method: list_horizontal_pod_autoscaler_for_all_namespaces
+    read_namespaced_method: read_namespaced_horizontal_pod_autoscaler
+    delete_namespaced_method: delete_namespaced_horizontal_pod_autoscaler
+
+  jobs:
+    kind: Job
+    api: batch/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_job
+    list_all_method: list_job_for_all_namespaces
+    read_namespaced_method: read_namespaced_job
+    delete_namespaced_method: delete_namespaced_job
+
+  cronjobs:
+    kind: CronJob
+    api: batch/v1
+    cluster_wide: false
+    list_namespaced_method: list_namespaced_cron_job
+    list_all_method: list_cron_job_for_all_namespaces
+    read_namespaced_method: read_namespaced_cron_job
+    delete_namespaced_method: delete_namespaced_cron_job
+
+  namespaces:
+    kind: Namespace
+    api: v1
+    cluster_wide: true
+    list_all_method: list_namespace
+    read_method: read_namespace
+    delete_method: delete_namespace
+
+  nodes:
+    kind: Node
+    api: v1
+    cluster_wide: true
+    list_all_method: list_node
+    read_method: read_node
+
+  persistent_volumes:
+    kind: PersistentVolume
+    api: v1
+    cluster_wide: true
+    list_all_method: list_persistent_volume
+    read_method: read_persistent_volume
+    delete_method: delete_persistent_volume

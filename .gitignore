@@ -1,20 +1,58 @@
+# Variáveis de ambiente e segredos
 .env
-__pycache__
-*.log
+.env.*
+variaveis.sh
+*.key
+*.crt
 
+# Kubeconfig e certificados locais
+remote-kubeconfig.yaml
+certs-remotos/
+
+# Ambientes virtuais Python
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Banco/arquivos temporários locais
 *.db-shm
 *.db-wal
 *.db-journal
 
-public
-variaveis.shvenv/
-__pycache__/
-venv/
-
-# .gitignore
-certs-remotos/
-remote-kubeconfig.yaml
-*.key
-*.crt
+# Logs e resultados locais
 logs/
-.env
+*.log
+
+# IDEs e editores
+.vscode/
+.idea/
+
+# Arquivos temporários de sistema/editor
+*.tmp
+*.swp
+*.swo
+.DS_Store
+
+# Arquivos públicos/gerados localmente
+public/
+# Local benchmark/result archives
+local_archives/
+final_results_archive/
+*.tar.gz
+
+# Temporary comparison snapshots
+*_current.py
+*_before_*.py
+report_*_latest.md
+scenario_*_current.yaml
+current_use_cases_snapshot/
