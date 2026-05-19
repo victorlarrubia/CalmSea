@@ -65,6 +65,7 @@ services:
       - ./logs:/app/logs
       - ./tests:/app/tests
       - ./results:/app/results
+      - ./docs:/app/docs
 
   # --- OPÇÕES DE HARDWARE OLLAMA ---
   ollama-nvidia:
