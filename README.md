@@ -213,7 +213,7 @@ docker compose up performancetest
 
 **AgentK - Exemplo de uso** 
 <p align="center">
-  <img src="docs/images/AgentK-Frontend.jpeg" alt="AgentK" width="600" />
+  <img src="docs/images/AgentK-Frontend.png" alt="AgentK" width="600" />
 </p>
 
 ### 🎨 Recursos Visuais
